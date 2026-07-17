@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.1';
+const CARD_VERSION = '2.9.2';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -54,7 +54,7 @@ const STYLE = `
   .pill, .bar-tile { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; box-sizing:border-box;
     background: color-mix(in srgb, ${INK} 7%, transparent); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
     border-radius:16px; padding:10px 12px; cursor:pointer; }
-  .pill.active, .bar-tile.active { box-shadow: inset 0 0 28px -10px color-mix(in srgb, var(--c) 45%, transparent); }
+  .pill.active, .bar-tile.active { box-shadow: inset 0 0 calc(16px + var(--glow, 1) * 12px) -10px color-mix(in srgb, var(--c) calc(15% + var(--glow, 1) * 30%), transparent); }
   .bar-tile { flex-direction:column; align-items:stretch; gap:10px; }
   .bar-tile .left { display:flex; align-items:center; gap:10px; min-width:0; }
   .left { display:flex; align-items:center; gap:10px; min-width:0; }
@@ -64,9 +64,9 @@ const STYLE = `
     color: var(--primary-text-color, #fff); cursor:pointer; transition: box-shadow .12s ease, filter .12s ease, background .12s ease;
     background: linear-gradient(155deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 45%, rgba(255,255,255,0.12) 100%);
     box-shadow: inset 0 1px 1px rgba(255,255,255,0.18); }
-  .icon-box.active { background: linear-gradient(155deg, color-mix(in srgb, var(--c) 45%, rgba(255,255,255,0.3)) 0%, rgba(255,255,255,0.12) 45%, color-mix(in srgb, var(--c) 45%, rgba(255,255,255,0.3)) 100%);
-    box-shadow: inset 0 0 12px color-mix(in srgb, var(--c) 40%, white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 14px -1px color-mix(in srgb, var(--c) 55%, transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
-    filter: brightness(1.15) saturate(150%); }
+  .icon-box.active { background: linear-gradient(155deg, color-mix(in srgb, var(--c) calc(30% + var(--glow, 1) * 35%), rgba(255,255,255,0.3)) 0%, rgba(255,255,255,0.12) 45%, color-mix(in srgb, var(--c) calc(30% + var(--glow, 1) * 35%), rgba(255,255,255,0.3)) 100%);
+    box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
+    filter: brightness(calc(0.95 + var(--glow, 1) * 0.25)) saturate(calc(105% + var(--glow, 1) * 55%)); }
   .icon-box ha-icon { --mdc-icon-size: 18px; }
   .text { min-width:0; }
   .text.center { text-align:center; margin-top:10px; }
@@ -92,8 +92,8 @@ const STYLE = `
   .ring-inner { width:58px; height:58px; border-radius:50%; background: var(--card-background-color, #22232c);
     display:flex; align-items:center; justify-content:center; color: var(--secondary-text-color, rgba(255,255,255,0.7)); cursor:pointer;
     box-shadow: inset 0 1px 1px rgba(255,255,255,0.18); transition: box-shadow .12s ease, filter .12s ease; }
-  .ring-inner.active { box-shadow: inset 0 0 12px color-mix(in srgb, var(--c) 40%, white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 14px -1px color-mix(in srgb, var(--c) 55%, transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
-    filter: brightness(1.15) saturate(150%); }
+  .ring-inner.active { box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
+    filter: brightness(calc(0.95 + var(--glow, 1) * 0.25)) saturate(calc(105% + var(--glow, 1) * 55%)); }
   .ring-inner ha-icon { --mdc-icon-size: 20px; }
   .ring-lens { position:absolute; width:26px; height:16px; border-radius:999px;
     cursor:grab; background: linear-gradient(155deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.28) 100%);
@@ -107,6 +107,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       throw new Error('liquid-glass-tile-card-v2: "rows" (array of entity configs) is required.');
     }
     this._config = config;
+    this._lastColor = this._lastColor || {};
     this._build();
     this._buildRows();
     // bg_opacity (0-1, matching v1's convention) controls how solid the
@@ -293,26 +294,36 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
   // Only lights that can genuinely display a hue (hs/rgb/xy/...) glow in
   // their actual set color; brightness-only and color-temp-only lights
-  // always stay the warm default. Ported straight from v1's philosophy:
-  // read whatever the CURRENT state object says, synchronously, every
-  // time - no cache, no async history-API fallback. v1 never had any
-  // version of the "yellow until released" bug precisely because it
-  // never waited on anything; the moment a fresh hass tick carries the
-  // real rgb_color/hs_color, the very next _patchRows() call (which now
-  // runs unconditionally for color, drag or not) reflects it. A light
-  // with no color info yet just shows the warm default for that one
-  // tick, same as v1 always did - never gets artificially "stuck".
-  _lightColor(stateObj) {
+  // always stay the warm default. Reads the CURRENT state synchronously
+  // every time - no network, no async history-API lookup. Fallback: if
+  // this specific tick's state doesn't give us a definitive color (the
+  // rgb_color/hs_color fields are missing, or during a fast drag firing
+  // brightness-only turn_on calls every ~100ms, even the whole
+  // attributes bag can occasionally arrive momentarily incomplete
+  // before a physical device's next full report), fall back to the
+  // last real color we saw for this entity rather than flash the warm
+  // default. This is a plain in-memory dictionary, only ever written
+  // when a real color passed the trueColorCapable check below - so it
+  // can never tint a light that genuinely doesn't support color, even
+  // though the fallback itself doesn't re-check trueColorCapable.
+  _lightColor(stateObj, entityId) {
     const modes = stateObj?.attributes?.supported_color_modes;
     const trueColorCapable = Array.isArray(modes) && modes.some((m) => TRUE_COLOR_MODES.includes(m));
     if (trueColorCapable) {
       if (Array.isArray(stateObj.attributes.rgb_color)) {
         const [r, g, b] = stateObj.attributes.rgb_color;
-        return `rgb(${r}, ${g}, ${b})`;
+        const color = `rgb(${r}, ${g}, ${b})`;
+        if (entityId) this._lastColor[entityId] = color;
+        return color;
       }
       if (Array.isArray(stateObj.attributes.hs_color)) {
-        return hsToRgbCss(stateObj.attributes.hs_color);
+        const color = hsToRgbCss(stateObj.attributes.hs_color);
+        if (entityId) this._lastColor[entityId] = color;
+        return color;
       }
+    }
+    if (entityId && this._lastColor[entityId]) {
+      return this._lastColor[entityId];
     }
     return WARM_LIGHT_COLOR;
   }
@@ -325,7 +336,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       // through to the same default any untinted row would get.
     }
     const domain = this._domain(row.entity);
-    return domain === 'light' ? this._lightColor(stateObj) : PALETTE[i % PALETTE.length];
+    return domain === 'light' ? this._lightColor(stateObj, row.entity) : PALETTE[i % PALETTE.length];
   }
 
   _setNumeric(row, pct) {
@@ -410,8 +421,6 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (tileEl) tileEl.dataset.dragging = '1';
     trackEl.setPointerCapture(e.pointerId);
 
-    const iconEl = tileEl ? tileEl.querySelector('.icon-box') : null;
-
     let lastSent = 0;
     let lastStep = -1;
     const sendNumeric = (pct, throttle) => {
@@ -421,21 +430,25 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       this._setNumeric(row, pct);
     };
 
+    // Position + glow intensity only - mirrors v1's _applyBarFill /
+    // _applySliderGlow exactly. Color/active (which hue, and whether
+    // it's tinted at all) are never touched here; they're 100% owned
+    // by _patchRows(), which runs unconditionally every hass tick
+    // regardless of drag state (matching v1's tint line). --glow is a
+    // plain intensity number (how strong the glow reads, scaling with
+    // brightness%) - purely CSS-composed with --c via calc()/color-mix
+    // in the stylesheet, so, like --c, it can never go stale requiring
+    // an explicit repaint. Nothing here paints anything before the
+    // first real pointermove, same as v1's pointerdown handler, which
+    // only arms the drag and doesn't call its onMove callback until
+    // movement actually happens.
     const update = (ev) => {
       const rect = trackEl.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
       const fill = trackEl.querySelector('.fill'), lens = trackEl.querySelector('.lens');
       if (fill) fill.style.width = `${pct * 100}%`;
       if (lens) lens.style.left = `calc(13px + (100% - 26px) * ${pct})`;
-      const liveActive = pct > 0.02;
-      // Color needs no attention here anymore - it's a plain var(--c)
-      // CSS reference that _patchRows() keeps current regardless of
-      // drag state, so it can never go stale mid-gesture. Only the
-      // active/inactive glow toggle needs a live update here, so the
-      // tile lights up the instant the drag crosses ~0, before HA's
-      // own state confirms "on" (that confirmation lags a round trip).
-      if (tileEl) tileEl.classList.toggle('active', liveActive);
-      if (iconEl) iconEl.classList.toggle('active', liveActive);
+      if (tileEl) tileEl.style.setProperty('--glow', Math.max(0.12, pct));
       this._pendingPct = pct;
     };
 
@@ -444,8 +457,6 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       trackEl.removeEventListener('pointerup', onUp);
       trackEl.removeEventListener('pointercancel', onCancel);
       if (tileEl) delete tileEl.dataset.dragging;
-      // Catch up the fill/lens position to the final settled value now
-      // that the drag guard is lifted.
       this._patchRows();
     };
 
@@ -465,7 +476,6 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     };
     const onCancel = () => cleanup();
 
-    update(e);
     trackEl.addEventListener('pointermove', onMove);
     trackEl.addEventListener('pointerup', onUp);
     trackEl.addEventListener('pointercancel', onCancel);
@@ -480,7 +490,14 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (tileEl) tileEl.dataset.dragging = '1';
     ringEl.setPointerCapture(e.pointerId);
 
-    const iconEl = ringEl.querySelector('.ring-inner');
+    // Captured once, not re-read per move: _patchRows() just ran
+    // unconditionally on the last hass tick before this drag started,
+    // so this is already current. The ring's conic-gradient bakes
+    // color and angle into one string, so position updates need a
+    // color value to paint with - but the drag itself never decides
+    // on/off or re-derives color, exactly like the bar drag above.
+    const color = this._rowColor(row, i, this._hass.states[row.entity]);
+    const active = this._isActive(row, this._hass.states[row.entity]);
 
     let lastSent = 0;
     let lastStep = -1;
@@ -497,15 +514,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       let deg = Math.atan2(ev.clientX - cx, -(ev.clientY - cy)) * 180 / Math.PI;
       if (deg < 0) deg += 360;
       const pct = deg / 360;
-      const liveActive = pct > 0.02;
-      // The ring's own conic-gradient background still has to be a
-      // JS-computed string (dynamic angle), so it still needs a live
-      // color re-read each move - same reasoning as the bar drag.
-      // The inner icon's glow, though, is now a plain CSS var(--c) +
-      // .active toggle, so it just needs the class flipped live.
-      const liveColor = this._rowColor(row, i, this._hass.states[row.entity]);
-      this._paintRing(ringEl, pct, liveColor, liveActive);
-      if (iconEl) iconEl.classList.toggle('active', liveActive);
+      this._paintRing(ringEl, pct, color, active);
+      if (tileEl) tileEl.style.setProperty('--glow', Math.max(0.12, pct));
       this._pendingPct = pct;
     };
 
@@ -664,34 +674,38 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
       if (type === 'gauge') {
         const pct = this._pctFor(row, stateObj);
-        // While this row is being dragged, HA's own reported state can
-        // genuinely still say "off"/no-color for a moment (the service
-        // call hasn't round-tripped yet) - patching --c/.active from
-        // that stale reality would yank the drag's own optimistic
-        // preview back to neutral/warm mid-gesture. So, same as the
-        // ring's angle/lens, color and active-state stay exactly as
-        // the drag's own live update() left them until release.
+        // Mirrors v1 exactly: color/active-state are a pure function of
+        // the real entity state and update on every hass tick no
+        // matter what - a drag never overrides them and never gets
+        // overridden by them. Only the ring's own angle/lens position
+        // AND the pct-scaled glow intensity (v1's _applySliderGlow
+        // equivalent - brighter light, stronger glow) are genuinely
+        // tied to the live pointer and stay frozen until release.
+        rowEl.style.setProperty('--c', color);
+        const ringEl = rowEl.querySelector('.ring');
+        if (ringEl) ringEl.style.setProperty('--c', color);
+        const ringInnerEl = rowEl.querySelector('.ring-inner');
+        if (ringInnerEl) ringInnerEl.classList.toggle('active', active);
         if (!dragging) {
-          rowEl.style.setProperty('--c', color);
-          const ringEl = rowEl.querySelector('.ring');
-          if (ringEl) ringEl.style.setProperty('--c', color);
-          const ringInnerEl = rowEl.querySelector('.ring-inner');
-          if (ringInnerEl) ringInnerEl.classList.toggle('active', active);
-          this._paintRing(rowEl.querySelector('.ring'), pct, color, active);
+          rowEl.style.setProperty('--glow', active ? Math.max(0.12, pct) : 0);
+          this._paintRing(ringEl, pct, color, active);
         }
         return;
       }
 
       // bar
       const pct = this._pctFor(row, stateObj);
-      // Same reasoning as gauge above: color/active stay untouched
-      // while this row is being dragged, so a lagging "still off" hass
-      // tick can't override the drag's own optimistic live preview.
+      // Same principle as gauge: color/active always reflect the real
+      // current state, drag or not - mirrors v1's tint line, which is
+      // never gated by dragging either. Only the fill width + lens
+      // left (the actual live position) AND the pct-scaled glow
+      // intensity stay protected while this row is being dragged.
+      rowEl.style.setProperty('--c', color);
+      rowEl.classList.toggle('active', active);
+      const iconBox = rowEl.querySelector('.icon-box');
+      if (iconBox) iconBox.classList.toggle('active', active);
       if (!dragging) {
-        rowEl.style.setProperty('--c', color);
-        rowEl.classList.toggle('active', active);
-        const iconBox = rowEl.querySelector('.icon-box');
-        if (iconBox) iconBox.classList.toggle('active', active);
+        rowEl.style.setProperty('--glow', active ? Math.max(0.12, pct) : 0);
         const fillEl = rowEl.querySelector('.fill');
         const lensEl = rowEl.querySelector('.lens');
         if (fillEl) {
