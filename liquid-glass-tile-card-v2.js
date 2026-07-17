@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.0';
+const CARD_VERSION = '2.9.1';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -664,33 +664,34 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
       if (type === 'gauge') {
         const pct = this._pctFor(row, stateObj);
-        rowEl.style.setProperty('--c', color);
-        const ringEl = rowEl.querySelector('.ring');
-        if (ringEl) ringEl.style.setProperty('--c', color);
-        // The inner icon's glow is plain CSS (var(--c) + .active), so
-        // it's always safe to update regardless of drag state - only
-        // the ring's own angle/lens position (a JS-computed string,
-        // genuinely tied to the live pointer) stays frozen until
-        // release.
-        const ringInnerEl = rowEl.querySelector('.ring-inner');
-        if (ringInnerEl) ringInnerEl.classList.toggle('active', active);
+        // While this row is being dragged, HA's own reported state can
+        // genuinely still say "off"/no-color for a moment (the service
+        // call hasn't round-tripped yet) - patching --c/.active from
+        // that stale reality would yank the drag's own optimistic
+        // preview back to neutral/warm mid-gesture. So, same as the
+        // ring's angle/lens, color and active-state stay exactly as
+        // the drag's own live update() left them until release.
         if (!dragging) {
-          this._paintRing(ringEl, pct, color, active);
+          rowEl.style.setProperty('--c', color);
+          const ringEl = rowEl.querySelector('.ring');
+          if (ringEl) ringEl.style.setProperty('--c', color);
+          const ringInnerEl = rowEl.querySelector('.ring-inner');
+          if (ringInnerEl) ringInnerEl.classList.toggle('active', active);
+          this._paintRing(rowEl.querySelector('.ring'), pct, color, active);
         }
         return;
       }
 
       // bar
       const pct = this._pctFor(row, stateObj);
-      rowEl.style.setProperty('--c', color);
-      // Tile glow + icon glow are now plain CSS (var(--c) + .active),
-      // so they're always safe to update regardless of drag state.
-      // Only the fill width + lens left (the actual live position)
-      // stay protected while this row is being dragged.
-      rowEl.classList.toggle('active', active);
-      const iconBox = rowEl.querySelector('.icon-box');
-      if (iconBox) iconBox.classList.toggle('active', active);
+      // Same reasoning as gauge above: color/active stay untouched
+      // while this row is being dragged, so a lagging "still off" hass
+      // tick can't override the drag's own optimistic live preview.
       if (!dragging) {
+        rowEl.style.setProperty('--c', color);
+        rowEl.classList.toggle('active', active);
+        const iconBox = rowEl.querySelector('.icon-box');
+        if (iconBox) iconBox.classList.toggle('active', active);
         const fillEl = rowEl.querySelector('.fill');
         const lensEl = rowEl.querySelector('.lens');
         if (fillEl) {
