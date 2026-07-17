@@ -14,7 +14,8 @@ Built iteratively in conversation with Claude (Anthropic).
   - **gauge** — circular ring gauge with a draggable glass lens, same data model as `bar` in a compact ring form
 - Rows are draggable (settable) whenever they represent an adjustable value (`light` brightness, `number`/`input_number`) and have no `progress` template — rows with a `progress` template are always read-only, driven entirely by the template
 - Per-row JS templates (`[[[ ... ]]]`, with `states`/`hass`/`entity` in scope) for `color`, `progress`, and `state_text` — same template convention as v1
-- Live color for dimmable/color lights: reads `rgb_color` while on, remembers the last real color in-memory, and falls back to a one-shot History API lookup for lights that are off and haven't been seen yet this session
+- Live color for dimmable/color lights: reads the current `rgb_color`/`hs_color` straight off live state on every update, same as v1 - no caching, no async lookups, so it can never show a stale color
+- Tapping a row's name always opens Home Assistant's own more-info dialog (color wheel, color temperature, etc.), regardless of `tap_action` - dragging the row itself only ever sets brightness/value
 - Confirmation dialogs (`tap_action.confirmation`) for destructive actions
 - `bg_opacity` (0–1) to control how transparent the card's own backdrop reads, e.g. to match more transparent native cards on the same view
 - 2-column grid layout option (`layout: "grid"`) for compact multi-row cards
@@ -83,6 +84,18 @@ rows:
 ## Relationship to v1
 
 `liquid-glass-tile-card` (v1) and this card are separate custom elements (`liquid-glass-tile-card` vs. `liquid-glass-tile-card-v2`) with different config schemas, meant to coexist rather than replace one another — v1 for a single square/chip tile per entity, v2 for grouping several entities into one list-style card. Both can be used side by side on the same dashboard.
+
+## Changelog
+
+### 2.9.0
+- Rewrote row rendering from a full `innerHTML` rebuild on every Home Assistant update to incremental DOM patching (existing row elements are updated in place, never replaced) - matches v1's approach
+- Drag protection is now scoped per-row instead of globally: dragging one row's slider/ring no longer freezes every other row's updates
+- Icon and tile glow are now plain CSS driven off `var(--c)` instead of JS-computed `color-mix()` strings, so they can never lag behind the row's current color, even mid-drag
+- Fixes a bug where a light's tile/icon could briefly (or, in some cases, persistently until the slider was released) show the wrong color after a dashboard view or popup was freshly opened
+- Added: tapping a row's name opens the entity's more-info dialog
+
+### 2.8.7 and earlier
+- Initial multi-row release (toggle/bar/gauge rows, templates, grid layout, `bg_opacity`)
 
 ## License
 
