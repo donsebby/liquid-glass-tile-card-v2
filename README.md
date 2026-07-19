@@ -87,6 +87,9 @@ rows:
 
 ## Changelog
 
+### 2.9.3
+- Fixed: gauge rows (`type: gauge`) now render the inner ring with a translucent glass surface instead of a flat, opaque theme-colored disc. `.ring-inner` previously used `background: var(--card-background-color, ...)`, which read as a solid "milky" circle rather than glass. Now uses a low-opacity white fill (`rgba(255,255,255,0.11)`) with a thin border and top/bottom inset shadows for highlight + depth, matching the round-glass look used elsewhere in the Liquid Glass family (e.g. thermostat-glass-card's `.icon-glass`). Purely visual, no config or behavior changes.
+
 ### 2.9.0
 - Rewrote row rendering from a full `innerHTML` rebuild on every Home Assistant update to incremental DOM patching (existing row elements are updated in place, never replaced) - matches v1's approach
 - Drag protection is now scoped per-row instead of globally: dragging one row's slider/ring no longer freezes every other row's updates
