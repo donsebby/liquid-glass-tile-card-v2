@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.3';
+const CARD_VERSION = '2.9.4';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -87,13 +87,12 @@ const STYLE = `
     box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15); }
   .gauge-tile { display:flex; flex-direction:column; align-items:center; cursor:pointer; min-width:0; box-sizing:border-box; }
   .ring { width:74px; height:74px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center;
-    background: conic-gradient(var(--c) 0deg, var(--pct), color-mix(in srgb, ${INK} 14%, transparent) 0deg);
+    background: conic-gradient(var(--c) 0deg, var(--pct), transparent 0deg);
     box-shadow:0 0 16px -4px var(--c); touch-action:none; cursor:grab; }
-  .ring-inner { width:58px; height:58px; border-radius:50%; background: rgba(255,255,255,0.11); border: 1px solid rgba(255,255,255,0.16);
+  .ring-inner { width:58px; height:58px; border-radius:50%; background: color-mix(in srgb, var(--card-background-color, #f4f4f6) 90%, ${INK} 10%); border: 1px solid color-mix(in srgb, ${INK} 14%, transparent);
     display:flex; align-items:center; justify-content:center; color: var(--secondary-text-color, rgba(255,255,255,0.7)); cursor:pointer;
-    box-shadow: inset 0 2px 3px rgba(255,255,255,0.16), inset 0 -4px 8px rgba(0,0,0,0.22); transition: box-shadow .12s ease, filter .12s ease, background .12s ease; }
-  .ring-inner.active { box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
-    filter: brightness(calc(0.95 + var(--glow, 1) * 0.25)) saturate(calc(105% + var(--glow, 1) * 55%)); }
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.1); transition: filter .12s ease; }
+  .ring-inner.active { filter: brightness(calc(1 + var(--glow, 0) * 0.15)); }
   .ring-inner ha-icon { --mdc-icon-size: 20px; }
   .ring-lens { position:absolute; width:26px; height:16px; border-radius:999px;
     cursor:grab; background: linear-gradient(155deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.28) 100%);
@@ -560,7 +559,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
   _paintRing(ringEl, pct, color, active) {
     const deg = pct * 360;
-    ringEl.style.background = `conic-gradient(${color} 0deg, ${color} ${deg}deg, color-mix(in srgb, ${INK} 14%, transparent) ${deg}deg)`;
+    ringEl.style.background = `conic-gradient(${color} 0deg, ${color} ${deg}deg, transparent ${deg}deg)`;
     if (active !== undefined) ringEl.style.boxShadow = this._ringHaloShadow(active, color, pct);
     const lens = ringEl.querySelector('.ring-lens');
     if (lens) {
