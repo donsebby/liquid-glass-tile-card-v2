@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.2';
+const CARD_VERSION = '2.9.3';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -89,9 +89,9 @@ const STYLE = `
   .ring { width:74px; height:74px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center;
     background: conic-gradient(var(--c) 0deg, var(--pct), color-mix(in srgb, ${INK} 14%, transparent) 0deg);
     box-shadow:0 0 16px -4px var(--c); touch-action:none; cursor:grab; }
-  .ring-inner { width:58px; height:58px; border-radius:50%; background: var(--card-background-color, #22232c);
+  .ring-inner { width:58px; height:58px; border-radius:50%; background: rgba(255,255,255,0.11); border: 1px solid rgba(255,255,255,0.16);
     display:flex; align-items:center; justify-content:center; color: var(--secondary-text-color, rgba(255,255,255,0.7)); cursor:pointer;
-    box-shadow: inset 0 1px 1px rgba(255,255,255,0.18); transition: box-shadow .12s ease, filter .12s ease; }
+    box-shadow: inset 0 2px 3px rgba(255,255,255,0.16), inset 0 -4px 8px rgba(0,0,0,0.22); transition: box-shadow .12s ease, filter .12s ease, background .12s ease; }
   .ring-inner.active { box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
     filter: brightness(calc(0.95 + var(--glow, 1) * 0.25)) saturate(calc(105% + var(--glow, 1) * 55%)); }
   .ring-inner ha-icon { --mdc-icon-size: 20px; }
