@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.4';
+const CARD_VERSION = '2.9.5';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -59,13 +59,13 @@ const STYLE = `
   .bar-tile .left { display:flex; align-items:center; gap:10px; min-width:0; }
   .left { display:flex; align-items:center; gap:10px; min-width:0; }
   .icon-box { width:34px; height:34px; flex:none; border-radius:11px; position:relative; display:flex; align-items:center;
-    justify-content:center; backdrop-filter: blur(3px) saturate(140%); -webkit-backdrop-filter: blur(3px) saturate(140%);
-    border: 1px solid color-mix(in srgb, ${INK} 18%, rgba(255,255,255,0.35));
+    justify-content:center;
+    border: 1px solid color-mix(in srgb, ${INK} 26%, rgba(255,255,255,0.5));
     color: var(--primary-text-color, #fff); cursor:pointer; transition: box-shadow .12s ease, filter .12s ease, background .12s ease;
-    background: linear-gradient(155deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.05) 45%, rgba(255,255,255,0.12) 100%);
-    box-shadow: inset 0 1px 1px rgba(255,255,255,0.18); }
+    background: linear-gradient(155deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.22) 45%, rgba(255,255,255,0.4) 100%);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.28), inset 2px 0 4px rgba(80,200,255,0.28), inset -2px 0 4px rgba(255,90,190,0.25); }
   .icon-box.active { background: linear-gradient(155deg, color-mix(in srgb, var(--c) calc(30% + var(--glow, 1) * 35%), rgba(255,255,255,0.3)) 0%, rgba(255,255,255,0.12) 45%, color-mix(in srgb, var(--c) calc(30% + var(--glow, 1) * 35%), rgba(255,255,255,0.3)) 100%);
-    box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent);
+    box-shadow: inset 0 0 calc(8px + var(--glow, 1) * 8px) color-mix(in srgb, var(--c) calc(25% + var(--glow, 1) * 35%), white), inset 0 1px 1px rgba(255,255,255,0.5), 0 0 calc(6px + var(--glow, 1) * 12px) -1px color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 45%), transparent), 0 3px 8px -3px color-mix(in srgb, var(--c) 45%, transparent), inset 2px 0 4px rgba(80,200,255,0.24), inset -2px 0 4px rgba(255,90,190,0.22);
     filter: brightness(calc(0.95 + var(--glow, 1) * 0.25)) saturate(calc(105% + var(--glow, 1) * 55%)); }
   .icon-box ha-icon { --mdc-icon-size: 18px; }
   .text { min-width:0; }
@@ -83,8 +83,9 @@ const STYLE = `
   .track .fill { position:absolute; top:0; left:0; height:100%; border-radius:999px; background:var(--c); box-shadow:0 0 10px -2px var(--c); }
   .lens { position:absolute; top:50%; width:26px; height:16px; border-radius:999px; transform:translate(-50%,-50%);
     cursor:grab; background: linear-gradient(155deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.28) 100%);
-    backdrop-filter: blur(3px); border:1px solid rgba(255,255,255,0.6);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15); }
+    backdrop-filter: blur(3px) saturate(220%) brightness(1.35); border:1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15),
+      inset 2px 0 5px rgba(80,200,255,0.32), inset -2px 0 5px rgba(255,90,190,0.3); }
   .gauge-tile { display:flex; flex-direction:column; align-items:center; cursor:pointer; min-width:0; box-sizing:border-box; }
   .ring { width:74px; height:74px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center;
     background: conic-gradient(var(--c) 0deg, var(--pct), transparent 0deg);
@@ -96,8 +97,9 @@ const STYLE = `
   .ring-inner ha-icon { --mdc-icon-size: 20px; }
   .ring-lens { position:absolute; width:26px; height:16px; border-radius:999px;
     cursor:grab; background: linear-gradient(155deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.12) 45%, rgba(255,255,255,0.28) 100%);
-    backdrop-filter: blur(3px); border:1px solid rgba(255,255,255,0.6);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15); }
+    backdrop-filter: blur(3px) saturate(220%) brightness(1.35); border:1px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15),
+      inset 2px 0 5px rgba(80,200,255,0.32), inset -2px 0 5px rgba(255,90,190,0.3); }
 `;
 
 class LiquidGlassTileCardV2 extends HTMLElement {
