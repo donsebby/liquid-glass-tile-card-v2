@@ -7,6 +7,7 @@ This is the sequel to [`liquid-glass-tile-card`](https://github.com/donsebby/liq
 Built iteratively in conversation with Claude (Anthropic).
 
 ![demo](asset/liquid_glass_tile_v2_collage.png)
+![demo_gif](asset/liquid_glass_tile_v2_lamps_outlets.gif)
 
 ## Features
 
