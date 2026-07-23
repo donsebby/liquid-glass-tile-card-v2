@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.9.5';
+const CARD_VERSION = '2.10.0';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -139,10 +139,19 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       layout: 'list',
       rows: [
         { entity: 'switch.tv_steckdose', type: 'toggle' },
-        { entity: 'sensor.spuelmaschine_fortschritt', type: 'gauge', max: 100 },
-        { entity: 'number.einspeisevorgabe', type: 'bar', min: 0, max: 2000 },
       ],
     };
+  }
+
+  // Visual editor support. Without this, Home Assistant's dashboard
+  // editor falls back to YAML-only. Advanced per-row fields that are JS
+  // templates ([[[ ... ]]] for color/progress/state_text) and tap_action
+  // stay YAML-only on purpose - a visual builder for arbitrary JS isn't
+  // a good trade of effort for value; everything else (entity, type,
+  // name, icon, min/max, hide_track) is editable visually, including a
+  // live ha-entity-picker for the entity field.
+  static getConfigElement() {
+    return document.createElement('liquid-glass-tile-card-v2-editor');
   }
 
   _build() {
@@ -175,16 +184,19 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         return;
       }
 
-      // Name tap always opens HA's own more-info dialog - the color
-      // wheel, color-temp slider etc. live there, and this is the one
-      // place that shortcut should be reachable no matter what
-      // tap_action is configured (dragging the tile itself sets
-      // brightness, not color).
+      // Name tap: a row with an explicit tap_action runs that action.
+      // Rows without one keep the original behavior - HA's own more-info
+      // dialog, where the color wheel/color-temp slider for lights live
+      // (dragging the tile itself sets brightness, not color).
       const nameTap = e.target.closest('[data-action="name-tap"]');
       if (nameTap) {
         const row = this._config.rows[Number(nameTap.dataset.i)];
         if (row) {
-          this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: row.entity } }));
+          if (row.tap_action) {
+            this._handleTap(row);
+          } else {
+            this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: row.entity } }));
+          }
         }
         return;
       }
@@ -601,7 +613,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const domain = this._domain(row.entity);
 
       if (type === 'toggle') {
-        const iconAttrs = domain === 'light' ? `data-action="icon-tap" data-i="${i}"` : `data-action="icon-inert"`;
+        // Icon is tappable for lights (original behavior) or any row with
+        // an explicit tap_action configured - previously swallowed/inert
+        // for every non-light domain regardless of tap_action.
+        const iconAttrs = (domain === 'light' || row.tap_action) ? `data-action="icon-tap" data-i="${i}"` : `data-action="icon-inert"`;
         const controllable = TOGGLE_DOMAINS.includes(domain);
         const switchHtml = controllable
           ? `<div class="toggle" data-action="toggle" data-entity="${row.entity}"><div class="knob"></div></div>`
@@ -622,6 +637,17 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         </div>`;
       }
       // bar
+      // `hide_track: true` on a bar row skips the visual progress
+      // track/fill/lens entirely - for rows that are pure tap-action
+      // buttons rather than a real progress/percentage display.
+      // _patchRows() already null-checks fillEl/lensEl, so omitting
+      // them here is safe.
+      if (row.hide_track) {
+        return `<div class="bar-tile" data-row-i="${i}">
+          <div class="left"><div class="icon-box" data-action="icon-tap" data-i="${i}"><ha-icon></ha-icon></div>
+            <div class="text"><div class="name" data-action="name-tap" data-i="${i}"></div><div class="sub"></div></div></div>
+        </div>`;
+      }
       return `<div class="bar-tile" data-row-i="${i}">
         <div class="left"><div class="icon-box" data-action="icon-tap" data-i="${i}"><ha-icon></ha-icon></div>
           <div class="text"><div class="name" data-action="name-tap" data-i="${i}"></div><div class="sub"></div></div></div>
@@ -727,3 +753,237 @@ window.customCards.push({
   name: 'Liquid Glass Tile Card v2',
   description: 'Glassmorphes Multi-Row Entity-Tile mit Toggle-Pillen, Fortschrittsbalken und Ring-Gauge, jeweils mit ziehbarer Glaslinse.',
 });
+
+// ---------------------------------------------------------------------
+// Visual editor. Handles card-level fields (title, layout, bg_opacity)
+// and per-row basics (entity via ha-entity-picker with a plain-text
+// fallback, type, name, icon, min/max, hide_track). Anything
+// JS-template-shaped (color/progress/state_text templates, tap_action)
+// is left for YAML editing - editing arbitrary JS in a visual form
+// isn't a good trade of effort for value.
+//
+// Row DOM is only fully rebuilt when the row COUNT changes (add/remove/
+// move) - a plain value change (typing in a field) patches values in
+// place instead, so focus and the entity-picker's own internal search
+// state survive re-renders triggered by our own config-changed events.
+// ---------------------------------------------------------------------
+class LiquidGlassTileCardV2Editor extends HTMLElement {
+  setConfig(config) {
+    this._config = config;
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    // Keep any already-created entity pickers current without touching
+    // their value/search state.
+    if (this._pickers) {
+      this._pickers.forEach((p) => { if (p) p.hass = hass; });
+    }
+    this._render();
+  }
+
+  connectedCallback() {
+    this._render();
+  }
+
+  _emit(newConfig) {
+    this._config = newConfig;
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: newConfig }, bubbles: true, composed: true }));
+  }
+
+  _updateTop(key, value) {
+    const next = { ...this._config, [key]: value };
+    if (value === '' || value == null) delete next[key];
+    this._emit(next);
+  }
+
+  _updateRow(i, key, value) {
+    const rows = this._config.rows.map((r, idx) => {
+      if (idx !== i) return r;
+      const next = { ...r, [key]: value };
+      if (value === '' || value === false || value == null) delete next[key];
+      return next;
+    });
+    this._emit({ ...this._config, rows });
+  }
+
+  _addRow() {
+    this._emit({ ...this._config, rows: [...(this._config.rows || []), { entity: '', type: 'toggle' }] });
+  }
+
+  _removeRow(i) {
+    this._emit({ ...this._config, rows: this._config.rows.filter((_, idx) => idx !== i) });
+  }
+
+  _moveRow(i, dir) {
+    const rows = [...this._config.rows];
+    const j = i + dir;
+    if (j < 0 || j >= rows.length) return;
+    [rows[i], rows[j]] = [rows[j], rows[i]];
+    this._emit({ ...this._config, rows });
+  }
+
+  _setIfDiff(el, value) {
+    if (el && el.value !== String(value ?? '')) el.value = value ?? '';
+  }
+
+  _render() {
+    if (!this._config) return;
+    if (!this._built) {
+      this._built = true;
+      this._pickers = [];
+      this._rowCount = -1;
+      this.attachShadow({ mode: 'open' });
+      this.shadowRoot.innerHTML = `<style>
+        :host{display:block;font-size:13px}
+        .s{margin-bottom:14px}.st{font-weight:600;opacity:.7;margin-bottom:6px}
+        .f{display:flex;gap:6px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+        label{min-width:75px;opacity:.85}
+        input[type=text],input[type=number],select{flex:1;min-width:100px;padding:5px 7px;border-radius:6px;border:1px solid var(--divider-color,#ccc);background:var(--card-background-color,#fff);color:var(--primary-text-color,#000);font-size:13px}
+        input[type=range]{flex:1}
+        .ep-host{flex:1;min-width:100px}
+        .ep-host ha-entity-picker{width:100%}
+        .rc{border:1px solid var(--divider-color,#ccc);border-radius:10px;padding:8px;margin-bottom:8px}
+        .rh{display:flex;justify-content:space-between;margin-bottom:4px}
+        .ra button{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 5px;opacity:.7}
+        .ab{background:var(--primary-color,#03a9f4);color:#fff;border:none;border-radius:8px;padding:7px 12px;cursor:pointer}
+        .cb{display:flex;align-items:center;gap:6px}
+        .hint{font-size:11px;opacity:.6;margin-top:4px}
+        </style>
+        <div class="s"><div class="st">Karte</div>
+        <div class="f"><label>Titel</label><input type="text" data-top="title"></div>
+        <div class="f"><label>Layout</label><select data-top="layout"><option value="list">Liste</option><option value="grid">Grid (2 Spalten)</option></select></div>
+        <div class="f"><label>Transparenz</label><input type="range" min="0" max="1" step="0.05" data-top="bg_opacity"><span data-top-display="bg_opacity" style="font-size:12px;min-width:32px"></span></div>
+        </div>
+        <div class="s"><div class="st">Zeilen</div><div class="rh2"></div><button class="ab" type="button">+ Zeile</button></div>
+        <div class="hint">Templates (color/progress/state_text) und tap_action bitte im YAML-Modus bearbeiten.</div>`;
+      this.shadowRoot.querySelector('[data-top="title"]').addEventListener('input', (e) => this._updateTop('title', e.target.value));
+      this.shadowRoot.querySelector('[data-top="layout"]').addEventListener('change', (e) => this._updateTop('layout', e.target.value));
+      this.shadowRoot.querySelector('[data-top="bg_opacity"]').addEventListener('input', (e) => this._updateTop('bg_opacity', parseFloat(e.target.value)));
+      this.shadowRoot.querySelector('.ab').addEventListener('click', () => this._addRow());
+    }
+
+    this._setIfDiff(this.shadowRoot.querySelector('[data-top="title"]'), this._config.title || '');
+    const layoutEl = this.shadowRoot.querySelector('[data-top="layout"]');
+    if (layoutEl.value !== (this._config.layout || 'list')) layoutEl.value = this._config.layout || 'list';
+    const bgVal = this._config.bg_opacity != null ? this._config.bg_opacity : 0.7;
+    this._setIfDiff(this.shadowRoot.querySelector('[data-top="bg_opacity"]'), bgVal);
+    this.shadowRoot.querySelector('[data-top-display="bg_opacity"]').textContent = bgVal;
+
+    const rows = this._config.rows || [];
+    if (rows.length !== this._rowCount) {
+      this._rowCount = rows.length;
+      this._buildRowsDom(rows);
+    } else {
+      this._patchRowsDom(rows);
+    }
+  }
+
+  _buildRowsDom(rows) {
+    const host = this.shadowRoot.querySelector('.rh2');
+    this._pickers = [];
+    host.innerHTML = rows.map((row, i) => `<div class="rc" data-i="${i}">
+      <div class="rh"><b>Zeile ${i + 1}</b>
+        <span class="ra"><button type="button" data-act="up">\u25b2</button><button type="button" data-act="down">\u25bc</button><button type="button" data-act="del">\u2715</button></span></div>
+      <div class="f"><label>Entity</label><div class="ep-host" data-ep="${i}"></div></div>
+      <div class="f"><label>Typ</label><select data-field="type"><option value="toggle">toggle</option><option value="bar">bar</option><option value="gauge">gauge</option></select></div>
+      <div class="f"><label>Name</label><input type="text" data-field="name" placeholder="(Entity-Name)"></div>
+      <div class="f"><label>Icon</label><input type="text" data-field="icon" placeholder="mdi:..."></div>
+      <div class="f" data-only="bar,gauge"><label>Min</label><input type="number" data-field="min" placeholder="0"><label>Max</label><input type="number" data-field="max" placeholder="100"></div>
+      <div class="f cb" data-only="bar"><label style="min-width:auto">Leiste ausblenden</label><input type="checkbox" data-field="hide_track"></div>
+      </div>`).join('');
+
+    rows.forEach((row, i) => {
+      const card = host.querySelector(`[data-i="${i}"]`);
+
+      // Entity field: ha-entity-picker if the HA frontend has it
+      // registered (it always does in practice), plain text as a
+      // defensive fallback.
+      const epHost = card.querySelector(`[data-ep="${i}"]`);
+      let picker;
+      if (customElements.get('ha-entity-picker')) {
+        picker = document.createElement('ha-entity-picker');
+        picker.hass = this._hass;
+        picker.value = row.entity || '';
+        picker.allowCustomEntity = true;
+        picker.addEventListener('value-changed', (e) => {
+          e.stopPropagation();
+          this._updateRow(i, 'entity', e.detail.value || '');
+        });
+      } else {
+        picker = document.createElement('input');
+        picker.type = 'text';
+        picker.placeholder = 'z.B. binary_sensor.xyz';
+        picker.value = row.entity || '';
+        picker.addEventListener('input', (e) => this._updateRow(i, 'entity', e.target.value));
+      }
+      epHost.appendChild(picker);
+      this._pickers[i] = picker.tagName === 'HA-ENTITY-PICKER' ? picker : null;
+
+      card.querySelector('[data-field="type"]').value = row.type || 'toggle';
+      card.querySelector('[data-field="name"]').value = row.name || '';
+      card.querySelector('[data-field="icon"]').value = row.icon || '';
+      const minEl = card.querySelector('[data-field="min"]');
+      const maxEl = card.querySelector('[data-field="max"]');
+      if (minEl) minEl.value = row.min != null ? row.min : '';
+      if (maxEl) maxEl.value = row.max != null ? row.max : '';
+      const hideTrackEl = card.querySelector('[data-field="hide_track"]');
+      if (hideTrackEl) hideTrackEl.checked = !!row.hide_track;
+
+      const applyVisibility = () => {
+        const type = card.querySelector('[data-field="type"]').value;
+        card.querySelectorAll('[data-only]').forEach((el) => {
+          el.style.display = el.dataset.only.split(',').includes(type) ? '' : 'none';
+        });
+      };
+      applyVisibility();
+
+      card.querySelector('[data-field="type"]').addEventListener('change', (e) => this._updateRow(i, 'type', e.target.value));
+      card.querySelector('[data-field="name"]').addEventListener('input', (e) => this._updateRow(i, 'name', e.target.value));
+      card.querySelector('[data-field="icon"]').addEventListener('input', (e) => this._updateRow(i, 'icon', e.target.value));
+      if (minEl) minEl.addEventListener('input', (e) => this._updateRow(i, 'min', e.target.value === '' ? null : parseFloat(e.target.value)));
+      if (maxEl) maxEl.addEventListener('input', (e) => this._updateRow(i, 'max', e.target.value === '' ? null : parseFloat(e.target.value)));
+      if (hideTrackEl) hideTrackEl.addEventListener('change', (e) => this._updateRow(i, 'hide_track', e.target.checked));
+
+      card.querySelector('[data-act="up"]').addEventListener('click', () => this._moveRow(i, -1));
+      card.querySelector('[data-act="down"]').addEventListener('click', () => this._moveRow(i, 1));
+      card.querySelector('[data-act="del"]').addEventListener('click', () => this._removeRow(i));
+    });
+  }
+
+  _patchRowsDom(rows) {
+    const host = this.shadowRoot.querySelector('.rh2');
+    rows.forEach((row, i) => {
+      const card = host.querySelector(`[data-i="${i}"]`);
+      if (!card) return;
+
+      const picker = this._pickers[i];
+      if (picker) {
+        picker.hass = this._hass;
+        if (picker.value !== (row.entity || '')) picker.value = row.entity || '';
+      } else {
+        const plain = card.querySelector(`[data-ep="${i}"] input`);
+        this._setIfDiff(plain, row.entity || '');
+      }
+
+      const typeEl = card.querySelector('[data-field="type"]');
+      if (typeEl.value !== (row.type || 'toggle')) {
+        typeEl.value = row.type || 'toggle';
+        card.querySelectorAll('[data-only]').forEach((el) => {
+          el.style.display = el.dataset.only.split(',').includes(typeEl.value) ? '' : 'none';
+        });
+      }
+      this._setIfDiff(card.querySelector('[data-field="name"]'), row.name || '');
+      this._setIfDiff(card.querySelector('[data-field="icon"]'), row.icon || '');
+      const minEl = card.querySelector('[data-field="min"]');
+      const maxEl = card.querySelector('[data-field="max"]');
+      if (minEl) this._setIfDiff(minEl, row.min != null ? row.min : '');
+      if (maxEl) this._setIfDiff(maxEl, row.max != null ? row.max : '');
+      const hideTrackEl = card.querySelector('[data-field="hide_track"]');
+      if (hideTrackEl) hideTrackEl.checked = !!row.hide_track;
+    });
+  }
+}
+
+customElements.define('liquid-glass-tile-card-v2-editor', LiquidGlassTileCardV2Editor);
