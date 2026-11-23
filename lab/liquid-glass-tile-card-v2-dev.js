@@ -535,7 +535,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (row.power_entity) {
       const powerObj = this._hass.states[row.power_entity];
       const watts = powerObj ? parseFloat(powerObj.state) : NaN;
-      if (Number.isFinite(watts)) return `${watts.toFixed(1)} W`;
+      if (Number.isFinite(watts)) return this._formatState(powerObj);
     }
     if (row.state_text) {
       const resolved = this._resolveTemplate(row.state_text, row.entity);
