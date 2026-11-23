@@ -24,7 +24,8 @@ Built iteratively in conversation with Claude (Anthropic).
 - On phones, 2-column grids switch toggle pills to a Control-Center layout (icon and switch on top, name and state on their own line), so names aren't cut to a few letters
 - Subtext shows states localized by Home Assistant itself ("Geschlossen", "Beendet", ...)
 - `frame: false` (no panel, for pop-ups) and `glow: false` (no colored glows) for calmer placements
-- Visual editor for title, layout, transparency, frame/glow and the rows themselves (templates and `tap_action` stay YAML-only)
+- `look: solid` — an opt-in calm, Apple-Home-style tile look (solid surfaces, no glass, the whole tile toggles or slides) instead of the default glass
+- Visual editor for title, layout, style (glass/solid), transparency, frame/glow and the rows themselves (templates and `tap_action` stay YAML-only)
 - Confirmation dialogs (`tap_action.confirmation`) for destructive actions
 - `bg_opacity` (0–1) to control how transparent the card's own backdrop reads, e.g. to match more transparent native cards on the same view
 - 2-column grid layout option (`layout: "grid"`) for compact multi-row cards
@@ -54,6 +55,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `frame` | boolean | `true` | `false` renders no card panel at all (no background, border, blur, shadow, rounding or padding) — the rows sit directly on whatever is behind, e.g. inside a pop-up that already is a glass panel |
 | `glow` | boolean | `true` | `false` removes the decorative colored glows (active row/icon glow, switch, bar fill, ring halo, stat accent line) for a calmer look; row colors themselves stay |
 | `stat_size` | string | — | `large` makes `stat` rows bigger (44 px numbers, 104 px tiles) for a start page |
+| `look` | string | — (glass) | `solid` switches `toggle` and `bar` rows to calm solid tiles, see *Solid look*. Without it the card keeps the glass look |
 
 ### Row
 
@@ -110,6 +112,29 @@ rows:
   - entity: cover.garage
 ```
 
+### Solid look
+
+`look: solid` replaces the glass rows with quiet, solid tiles in the spirit of Apple Home / Control Center — neutral when off, clearly lit when on, colour only where something is active:
+
+- **Tiles** (`toggle` and `bar` rows): a solid surface (`--lg-tile-bg`, default a faint mix of the text colour), 64 px tall, no shadows and no glows (whatever `glow` says). When the entity is on, the tile is tinted with the row colour and the icon sits in a circle filled with it.
+- **Toggle rows** have no switch: tap anywhere on the tile to toggle (lights, switches, `input_boolean`, fans, sirens); other entities open more-info. A row's own `tap_action` still wins. Long-press (½ s) opens more-info.
+- **Bar rows** have no track or lens: the tile background itself fills from the left with the level. Drag horizontally anywhere on the tile to change it — relative to where you started, so the value doesn't jump — while a vertical swipe still scrolls the page or pop-up. The value is shown in the subtext while dragging (e.g. "64 %"). A plain tap toggles the light on/off; long-press opens more-info. Same service calls and update rate as the glass slider. `hide_track` bars are plain tap tiles without the fill.
+- `gauge` and `stat` rows keep working next to them, without glass highlights.
+- Transitions are switched off for `prefers-reduced-motion`.
+
+```yaml
+type: custom:liquid-glass-tile-card-v2
+look: solid
+frame: false
+layout: grid
+rows:
+  - entity: light.living_room
+    type: bar
+  - entity: light.desk_lamp
+  - entity: switch.coffee_machine
+    power_entity: sensor.coffee_machine_power
+```
+
 ### Example
 
 ```yaml
@@ -156,12 +181,13 @@ rows:
 
 ## Theme variables
 
-Like the other Liquid Glass cards, this card reads two optional CSS variables, so one theme can align all of them:
+Like the other Liquid Glass cards, this card reads optional CSS variables, so one theme can align all of them (`lg-tile-bg` only matters for `look: solid`):
 
 ```yaml
 # in your Home Assistant theme
 lg-radius: 22px                          # corner radius of the glass panel
 lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
+lg-tile-bg: rgba(40, 44, 52, 0.9)        # tile surface in `look: solid` (a plain colour)
 ```
 
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
@@ -172,6 +198,11 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 - New card option `stat_size: large`: bigger, bolder stat numbers (44 px) and labels for a start page; a value of 0 turns number and label to the secondary text colour.
 - New `stat` row option `line`: `false` hides the accent line, a template shows it only when it returns something truthy (e.g. only when a task is overdue).
 - Stat tiles read the optional CSS variable `--lg-stat-bg` for their background, so a theme or an ambience card can give them a solid surface.
+- New card option `look: solid`: calm, solid tiles for `toggle` and `bar` rows instead of glass (see *Solid look*). Solid surface from the optional `--lg-tile-bg`, tinted with the row colour when on, round icon filled with the row colour, larger text (15/13 px), 64 px tiles, no shadows or glows. Without `look` the card renders exactly as before.
+- Solid toggle rows: no switch, the whole tile toggles (or runs its `tap_action`); long-press opens more-info.
+- Solid bar rows: no track/lens, the tile fills with the level and is dragged horizontally anywhere (relative, axis-locked so vertical swipes still scroll, value shown in the subtext while dragging); a plain tap toggles, long-press opens more-info.
+- Gauge rings drop their glass centre highlight and lens in the solid look; transitions respect `prefers-reduced-motion`.
+- Visual editor: new "Stil" select (Glas / Solide); only `look: solid` is written.
 
 ### 2.12.0
 - States are now localized by default: without `state_text`/`power_entity` the subtext uses Home Assistant's own `hass.formatEntityState` (translated, e.g. "Beendet", "Geschlossen", "Ein", "Angedockt", with unit and display precision). Older frontends without it keep the previous text. Note: this changes the default subtext of existing rows (e.g. "An" becomes HA's "Ein", numbers use your locale's decimal separator).
