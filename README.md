@@ -53,6 +53,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `bg_opacity` | number | `0.7` | 0–1, controls the card's own background opacity |
 | `frame` | boolean | `true` | `false` renders no card panel at all (no background, border, blur, shadow, rounding or padding) — the rows sit directly on whatever is behind, e.g. inside a pop-up that already is a glass panel |
 | `glow` | boolean | `true` | `false` removes the decorative colored glows (active row/icon glow, switch, bar fill, ring halo, stat accent line) for a calmer look; row colors themselves stay |
+| `stat_size` | string | — | `large` makes `stat` rows bigger (44 px numbers, 104 px tiles) for a start page |
 
 ### Row
 
@@ -68,6 +69,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `power_entity` | string | Entity ID of a power sensor; if set, its wattage always wins over `state_text` |
 | `min` / `max` | number | Bounds for `number`/`input_number` rows without a `progress` template (default 0–100). On `stat` rows, `max` makes the accent line grow with the value |
 | `value` | string | `stat` rows only: number/text or `[[[ ]]]` template for the big value (default: the entity's state) |
+| `line` | boolean / string | `stat` rows only: `false` hides the accent line; a `[[[ ]]]` template shows it only when it returns something truthy |
 | `hide_track` | boolean | `bar` rows only: hide the track/fill/lens, e.g. for a row that is just a tap-action button |
 | `tap_action` | object | Standard-ish action object: `action` (`toggle`/`perform-action`/`navigate`/`more-info`/`none`), `perform_action`, `target`, `data`, and optional `confirmation: { text: "..." }` |
 
@@ -165,6 +167,11 @@ lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
 
 ## Changelog
+
+### 2.13.0
+- New card option `stat_size: large`: bigger, bolder stat numbers (44 px) and labels for a start page; a value of 0 turns number and label to the secondary text colour.
+- New `stat` row option `line`: `false` hides the accent line, a template shows it only when it returns something truthy (e.g. only when a task is overdue).
+- Stat tiles read the optional CSS variable `--lg-stat-bg` for their background, so a theme or an ambience card can give them a solid surface.
 
 ### 2.12.0
 - States are now localized by default: without `state_text`/`power_entity` the subtext uses Home Assistant's own `hass.formatEntityState` (translated, e.g. "Beendet", "Geschlossen", "Ein", "Angedockt", with unit and display precision). Older frontends without it keep the previous text. Note: this changes the default subtext of existing rows (e.g. "An" becomes HA's "Ein", numbers use your locale's decimal separator).
