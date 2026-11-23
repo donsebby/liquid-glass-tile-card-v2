@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.10.0';
+const CARD_VERSION = '2.10.1';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -53,7 +53,7 @@ const STYLE = `
   .rows.grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; align-items:stretch; }
   .pill, .bar-tile { display:flex; align-items:center; justify-content:space-between; gap:10px; min-width:0; box-sizing:border-box;
     background: color-mix(in srgb, ${INK} 7%, transparent); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
-    border-radius:16px; padding:10px 12px; cursor:pointer; }
+    border-radius:16px; padding:10px 12px; cursor:pointer; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   .pill.active, .bar-tile.active { box-shadow: inset 0 0 calc(16px + var(--glow, 1) * 12px) -10px color-mix(in srgb, var(--c) calc(15% + var(--glow, 1) * 30%), transparent); }
   .bar-tile { flex-direction:column; align-items:stretch; gap:10px; }
   .bar-tile .left { display:flex; align-items:center; gap:10px; min-width:0; }
@@ -71,7 +71,19 @@ const STYLE = `
   .text { min-width:0; }
   .text.center { text-align:center; margin-top:10px; }
   .name { color: var(--primary-text-color, rgba(255,255,255,0.95)); font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .sub { color: var(--secondary-text-color, rgba(255,255,255,0.55)); font-size:11.5px; margin-top:2px; }
+  .sub { color: var(--secondary-text-color, rgba(255,255,255,0.55)); font-size:11.5px; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Narrow 2-column grids (phones): a side-by-side icon/name/switch row
+     leaves the name only a few characters. Below ~430px card width the
+     pill switches to a Control-Center layout - icon and switch on top,
+     name and state on their own full-width line underneath. */
+  .rows.grid { container-type: inline-size; }
+  @container (max-width: 430px) {
+    .rows.grid .pill { flex-wrap:wrap; align-items:center; row-gap:8px; padding:10px 11px 9px; }
+    .rows.grid .pill > .left { display:contents; }
+    .rows.grid .pill .icon-box { order:1; }
+    .rows.grid .pill .toggle { order:2; }
+    .rows.grid .pill .text { order:3; flex:1 1 100%; }
+  }
   .toggle { width:46px; height:26px; flex:none; border-radius:999px; background: color-mix(in srgb, ${INK} 14%, transparent);
     position:relative; cursor:pointer; transition: background .2s ease; }
   .toggle.on { background: linear-gradient(90deg, var(--c) 0%, var(--c) 100%); box-shadow: 0 0 14px -2px var(--c); }
@@ -164,6 +176,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._cardEl = this.shadowRoot.querySelector('.card');
 
     this.shadowRoot.addEventListener('click', (e) => {
+      // A long-press already opened more-info; don't also run the tap.
+      if (this._lpFired) { this._lpFired = false; return; }
       // Most specific target first: the dedicated toggle switch always
       // just toggles, no matter what tap_action says (it's its one job).
       const t = e.target.closest('[data-action="toggle"]');
@@ -214,11 +228,44 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       }
     });
     this.shadowRoot.addEventListener('pointerdown', (e) => {
+      this._lpFired = false;
       const track = e.target.closest('[data-action="drag-bar"]');
       const ring = e.target.closest('[data-action="drag-ring"]');
       if (track) this._startBarDrag(e, track);
       else if (ring) this._startRingDrag(e, ring);
+      else this._startLongPress(e);
     });
+  }
+
+  // Long-press (500 ms) on a toggle pill opens HA's more-info dialog -
+  // the usual way to reach brightness/color, history and settings for a
+  // row whose tap toggles. Moving the finger more than a few px (e.g.
+  // scrolling the dashboard) cancels it.
+  _startLongPress(e) {
+    const pill = e.target.closest('.pill[data-row-i]');
+    if (!pill || e.target.closest('[data-action="toggle"]')) return;
+    const row = this._config.rows[Number(pill.dataset.rowI)];
+    if (!row || !row.entity) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const cleanup = () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerup', cleanup, true);
+      window.removeEventListener('pointercancel', cleanup, true);
+      window.removeEventListener('pointermove', onMove, true);
+    };
+    const onMove = (ev) => {
+      if (Math.abs(ev.clientX - x0) > 8 || Math.abs(ev.clientY - y0) > 8) cleanup();
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      this._lpFired = true;
+      this._haptic('medium');
+      this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId: row.entity } }));
+    }, 500);
+    window.addEventListener('pointerup', cleanup, true);
+    window.addEventListener('pointercancel', cleanup, true);
+    window.addEventListener('pointermove', onMove, true);
   }
 
   _domain(entityId) { return entityId.split('.')[0]; }
@@ -234,11 +281,26 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (typeof template !== 'string') return template;
     const match = /^\s*\[\[\[([\s\S]*)\]\]\]\s*$/.exec(template);
     if (!match) return template;
+    // Compiled once per template string: `set hass` fires on every state
+    // change anywhere in HA, so re-parsing each template every time adds
+    // up quickly with many templated rows.
+    if (!this._fnCache) this._fnCache = new Map();
+    let fn = this._fnCache.get(template);
+    if (fn === undefined) {
+      try {
+        // eslint-disable-next-line no-new-func
+        fn = new Function('states', 'hass', 'entity', match[1]);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('liquid-glass-tile-card-v2: template compile error', err);
+        fn = null;
+      }
+      this._fnCache.set(template, fn);
+    }
+    if (!fn) return null;
     try {
       const states = this._hass.states;
       const entity = states[entityId];
-      // eslint-disable-next-line no-new-func
-      const fn = new Function('states', 'hass', 'entity', match[1]);
       return fn(states, this._hass, entity);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -274,7 +336,12 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       this.dispatchEvent(new CustomEvent('hass-more-info', { bubbles: true, composed: true, detail: { entityId } }));
     } else if (action.action === 'navigate' && action.navigation_path) {
       if (action.navigation_path.startsWith('#')) {
-        window.location.hash = action.navigation_path;
+        // pushState + a manual hashchange instead of assigning
+        // location.hash: the native assignment makes the iOS Companion
+        // App's WKWebView briefly reload/flash the whole dashboard.
+        const oldURL = window.location.href;
+        window.history.pushState(null, '', action.navigation_path);
+        window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL, newURL: window.location.href }));
       } else {
         window.history.pushState(null, '', action.navigation_path);
         window.dispatchEvent(new CustomEvent('location-changed', { detail: { replace: false } }));

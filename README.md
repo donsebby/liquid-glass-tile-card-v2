@@ -18,7 +18,10 @@ Built iteratively in conversation with Claude (Anthropic).
 - Rows are draggable (settable) whenever they represent an adjustable value (`light` brightness, `number`/`input_number`) and have no `progress` template — rows with a `progress` template are always read-only, driven entirely by the template
 - Per-row JS templates (`[[[ ... ]]]`, with `states`/`hass`/`entity` in scope) for `color`, `progress`, and `state_text` — same template convention as v1
 - Live color for dimmable/color lights: reads the current `rgb_color`/`hs_color` straight off live state on every update, same as v1 - no caching, no async lookups, so it can never show a stale color
-- Tapping a row's name always opens Home Assistant's own more-info dialog (color wheel, color temperature, etc.), regardless of `tap_action` - dragging the row itself only ever sets brightness/value
+- Tapping a row's name runs the row's `tap_action` if it has one, otherwise opens Home Assistant's own more-info dialog (color wheel, color temperature, etc.) - dragging the row itself only ever sets brightness/value
+- Long-press (½ s) on a toggle pill always opens more-info, even when a tap toggles
+- On phones, 2-column grids switch toggle pills to a Control-Center layout (icon and switch on top, name and state on their own line), so names aren't cut to a few letters
+- Visual editor for title, layout, transparency and the rows themselves (templates and `tap_action` stay YAML-only)
 - Confirmation dialogs (`tap_action.confirmation`) for destructive actions
 - `bg_opacity` (0–1) to control how transparent the card's own backdrop reads, e.g. to match more transparent native cards on the same view
 - 2-column grid layout option (`layout: "grid"`) for compact multi-row cards
@@ -59,6 +62,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `state_text` | string | Static text or `[[[ ]]]` template for the subtext line |
 | `power_entity` | string | Entity ID of a power sensor; if set, its wattage always wins over `state_text` |
 | `min` / `max` | number | Bounds for `number`/`input_number` rows without a `progress` template (default 0–100) |
+| `hide_track` | boolean | `bar` rows only: hide the track/fill/lens, e.g. for a row that is just a tap-action button |
 | `tap_action` | object | Standard-ish action object: `action` (`toggle`/`perform-action`/`navigate`/`more-info`/`none`), `perform_action`, `target`, `data`, and optional `confirmation: { text: "..." }` |
 
 Templates run as `new Function('states', 'hass', 'entity', code)` — `entity` is this row's own state object, `states` is the full states dict, matching v1's template convention.
@@ -89,6 +93,18 @@ rows:
 `liquid-glass-tile-card` (v1) and this card are separate custom elements (`liquid-glass-tile-card` vs. `liquid-glass-tile-card-v2`) with different config schemas, meant to coexist rather than replace one another — v1 for a single square/chip tile per entity, v2 for grouping several entities into one list-style card. Both can be used side by side on the same dashboard.
 
 ## Changelog
+
+### 2.10.1
+- Phones: in `layout: grid`, toggle pills narrower than ~430px card width switch to a Control-Center layout (icon + switch on top, name/state full width underneath), so long names are no longer cut to a few characters. Uses a CSS container query; wider cards look exactly as before.
+- Long-press (500 ms) on a toggle pill opens more-info (with a haptic tick); moving the finger cancels it, and the tap that ends a long-press no longer also toggles.
+- Subtext is truncated with an ellipsis instead of wrapping, and pills no longer trigger text selection/callouts on long-press in iOS.
+- Hash navigation (`navigation_path: "#popup"`) uses `history.pushState` + a manual `hashchange`, fixing a brief reload/flash of the dashboard in the iOS Companion App (same fix as liquid-lens-navbar-card 1.5.3).
+- Templates are compiled once per template string and cached instead of on every Home Assistant update.
+
+### 2.10.0
+- Visual editor (`liquid-glass-tile-card-v2-editor`) for title, layout and `bg_opacity`, plus rows (entity picker, type, name, icon, min/max, `hide_track`) with add/remove/reorder.
+- Name tap runs a row's own `tap_action` when one is configured (more-info otherwise); the icon of `toggle` rows is tappable for any row with a `tap_action`, not only lights.
+- New `hide_track: true` for `bar` rows.
 
 ### 2.9.3
 - Fixed: gauge rows (`type: gauge`) now render the inner ring with a translucent glass surface instead of a flat, opaque theme-colored disc. `.ring-inner` previously used `background: var(--card-background-color, ...)`, which read as a solid "milky" circle rather than glass. Now uses a low-opacity white fill (`rgba(255,255,255,0.11)`) with a thin border and top/bottom inset shadows for highlight + depth, matching the round-glass look used elsewhere in the Liquid Glass family (e.g. thermostat-glass-card's `.icon-glass`). Purely visual, no config or behavior changes.
