@@ -213,6 +213,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     }
     this._config = config;
     this._lastColor = this._lastColor || {};
+    // No `look` in the config: the theme decides (--lg-look). Re-read it
+    // here too (setConfig is rare), so switching an override off in the
+    // editor picks up the theme's current look right away.
+    if (!this._lookOverride() && this.isConnected) this._themeLook = LiquidGlassTileCardV2._readThemeLook(this);
     this._build();
     // Card-level look switches live as classes on .card (CSS in STYLE),
     // set before the rows are built so the first paint already matches.
@@ -220,7 +224,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._cardEl.classList.toggle('frameless', config.frame === false);
     this._cardEl.classList.toggle('calm', !this._glowOn());
     this._cardEl.classList.toggle('stat-lg', config.stat_size === 'large');
-    // look: solid is opt-in; anything else keeps the glass look untouched.
+    // look: solid is opt-in (config `look`, else the theme's --lg-look);
+    // anything else keeps the glass look untouched.
     this._cardEl.classList.toggle('solid', this._isSolid());
     this._buildRows();
     // bg_opacity (0-1, matching v1's convention) controls how solid the
@@ -239,7 +244,71 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // Theme switch (new themes object, other theme or dark mode): the
+    // theme's --lg-look may have changed. Only then - never per tick.
+    const th = hass && hass.themes;
+    if (th !== this._themesRef || th?.theme !== this._themeName || th?.darkMode !== this._darkMode) {
+      this._themesRef = th;
+      this._themeName = th?.theme;
+      this._darkMode = th?.darkMode;
+      this._recheckThemeLook();
+    }
     this._patchRows();
+  }
+
+  // ---- look from the theme -------------------------------------------
+  // `look: solid | glass` in the card config wins. Without it the theme
+  // decides for all Liquid Glass cards at once through the CSS variable
+  // --lg-look (theme YAML: `lg-look: solid`); without that it's glass.
+  // The variable is only read on connect, on a theme change and on the
+  // window event `lg-theme-changed` - never on every hass tick.
+  connectedCallback() {
+    if (!this._onThemeChanged) this._onThemeChanged = () => this._checkThemeLook();
+    window.addEventListener('lg-theme-changed', this._onThemeChanged);
+    this._recheckThemeLook();
+  }
+
+  disconnectedCallback() {
+    if (this._onThemeChanged) window.removeEventListener('lg-theme-changed', this._onThemeChanged);
+    if (this._lookRaf) cancelAnimationFrame(this._lookRaf);
+    this._lookRaf = null;
+  }
+
+  static _readThemeLook(el) {
+    try {
+      const v = getComputedStyle(el).getPropertyValue('--lg-look')
+        .trim().replace(/^["']|["']$/g, '').trim().toLowerCase();
+      return v === 'solid' || v === 'glass' ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  _lookOverride() {
+    const look = this._config?.look;
+    return look === 'solid' || look === 'glass' ? look : null;
+  }
+
+  // Now and once more a frame later: HA applies a theme's variables after
+  // the card has been connected / handed the new hass.
+  _recheckThemeLook() {
+    this._checkThemeLook();
+    if (typeof requestAnimationFrame !== 'function' || this._lookRaf) return;
+    this._lookRaf = requestAnimationFrame(() => {
+      this._lookRaf = null;
+      this._checkThemeLook();
+    });
+  }
+
+  _checkThemeLook() {
+    if (!this._config || this._lookOverride() || !this.isConnected) return;
+    const look = LiquidGlassTileCardV2._readThemeLook(this);
+    if (look === this._themeLook) return;
+    const wasSolid = this._isSolid();
+    this._themeLook = look;
+    // The row DOM depends on the look, so rebuild exactly like a fresh
+    // setConfig with the same config would.
+    if (this._isSolid() !== wasSolid) this.setConfig(this._config);
   }
 
   getCardSize() { return Math.ceil((this._config?.rows?.length || 1) * 1.1) + 1; }
@@ -405,7 +474,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // The solid look has no glows at all, whatever `glow` says.
   _glowOn() { return this._config?.glow !== false && !this._isSolid(); }
 
-  _isSolid() { return this._config?.look === 'solid'; }
+  _isSolid() { return (this._lookOverride() || this._themeLook || 'glass') === 'solid'; }
 
   // Localized state text, the same string HA's own tiles/more-info show
   // ("Beendet", "Geschlossen", "Ein", "21,5 °C" - translated, with the
@@ -1246,7 +1315,7 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
         <div class="s"><div class="st">Karte</div>
         <div class="f"><label>Titel</label><input type="text" data-top="title"></div>
         <div class="f"><label>Layout</label><select data-top="layout"><option value="list">Liste</option><option value="grid">Grid (2 Spalten)</option></select></div>
-        <div class="f"><label>Stil</label><select data-top="look"><option value="glass">Glas</option><option value="solid">Solide</option></select></div>
+        <div class="f"><label>Stil</label><select data-top="look"><option value="">Wie Theme</option><option value="glass">Glas</option><option value="solid">Solide</option></select></div>
         <div class="f"><label>Transparenz</label><input type="range" min="0" max="1" step="0.05" data-top="bg_opacity"><span data-top-display="bg_opacity" style="font-size:12px;min-width:32px"></span></div>
         <div class="f cb"><label style="min-width:auto">Rahmen (eigenes Panel)</label><input type="checkbox" data-top="frame"></div>
         <div class="f cb"><label style="min-width:auto">Leuchten (Glow)</label><input type="checkbox" data-top="glow"></div>
@@ -1255,9 +1324,9 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
         <div class="hint">Templates (color/progress/state_text) und tap_action bitte im YAML-Modus bearbeiten.</div>`;
       this.shadowRoot.querySelector('[data-top="title"]').addEventListener('input', (e) => this._updateTop('title', e.target.value));
       this.shadowRoot.querySelector('[data-top="layout"]').addEventListener('change', (e) => this._updateTop('layout', e.target.value));
-      // Glass is the default, so picking it removes `look` again; only
-      // `look: solid` is ever written.
-      this.shadowRoot.querySelector('[data-top="look"]').addEventListener('change', (e) => this._updateTop('look', e.target.value === 'solid' ? 'solid' : null));
+      // "Wie Theme" removes `look` (the theme's --lg-look decides); Glas
+      // and Solide write an explicit per-card override.
+      this.shadowRoot.querySelector('[data-top="look"]').addEventListener('change', (e) => this._updateTop('look', e.target.value === 'solid' || e.target.value === 'glass' ? e.target.value : null));
       this.shadowRoot.querySelector('[data-top="bg_opacity"]').addEventListener('input', (e) => this._updateTop('bg_opacity', parseFloat(e.target.value)));
       // frame/glow default to true, so a ticked box removes the key again
       // (null -> deleted by _updateTop) and only `false` is ever written -
@@ -1272,7 +1341,7 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
     const layoutEl = this.shadowRoot.querySelector('[data-top="layout"]');
     if (layoutEl.value !== (this._config.layout || 'list')) layoutEl.value = this._config.layout || 'list';
     const lookEl = this.shadowRoot.querySelector('[data-top="look"]');
-    const lookVal = this._config.look === 'solid' ? 'solid' : 'glass';
+    const lookVal = this._config.look === 'solid' || this._config.look === 'glass' ? this._config.look : '';
     if (lookEl.value !== lookVal) lookEl.value = lookVal;
     const bgVal = this._config.bg_opacity != null ? this._config.bg_opacity : 0.7;
     this._setIfDiff(this.shadowRoot.querySelector('[data-top="bg_opacity"]'), bgVal);
