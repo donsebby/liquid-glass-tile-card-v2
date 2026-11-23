@@ -11,10 +11,11 @@ Built iteratively in conversation with Claude (Anthropic).
 
 ## Features
 
-- Three row styles:
+- Four row styles:
   - **toggle** — icon + name + status, with a real switch widget for controllable domains (`light`, `switch`, `input_boolean`, `fan`, `siren`); read-only status pill for everything else (`binary_sensor`, plain `sensor`, ...)
   - **bar** — horizontal progress track with a draggable glass lens, for brightness/percentage-style values
   - **gauge** — circular ring gauge with a draggable glass lens, same data model as `bar` in a compact ring form
+  - **stat** — number-first tile for counts ("7 open items"): big value, label underneath, small icon top-right and a short accent line in the row color; value 0 dims it
 - Rows are draggable (settable) whenever they represent an adjustable value (`light` brightness, `number`/`input_number`) and have no `progress` template — rows with a `progress` template are always read-only, driven entirely by the template
 - Per-row JS templates (`[[[ ... ]]]`, with `states`/`hass`/`entity` in scope) for `color`, `progress`, and `state_text` — same template convention as v1
 - Live color for dimmable/color lights: reads the current `rgb_color`/`hs_color` straight off live state on every update, same as v1 - no caching, no async lookups, so it can never show a stale color
@@ -54,14 +55,15 @@ Built iteratively in conversation with Claude (Anthropic).
 | Option | Type | Description |
 |---|---|---|
 | `entity` | string | **Required.** Entity ID this row is bound to |
-| `type` | string | `toggle` (default), `bar`, or `gauge` |
+| `type` | string | `toggle` (default), `bar`, `gauge`, or `stat` |
 | `name` | string | Display name, defaults to the entity's `friendly_name` |
 | `icon` | string | mdi icon, defaults to the entity's own icon |
 | `color` | string | Hex color, or `[[[ ]]]` template returning one (or `null`/falsy to fall back to the default) |
 | `progress` | string | `[[[ ]]]` template returning 0–100. Presence of this field makes the row **read-only** regardless of domain |
 | `state_text` | string | Static text or `[[[ ]]]` template for the subtext line |
 | `power_entity` | string | Entity ID of a power sensor; if set, its wattage always wins over `state_text` |
-| `min` / `max` | number | Bounds for `number`/`input_number` rows without a `progress` template (default 0–100) |
+| `min` / `max` | number | Bounds for `number`/`input_number` rows without a `progress` template (default 0–100). On `stat` rows, `max` makes the accent line grow with the value |
+| `value` | string | `stat` rows only: number/text or `[[[ ]]]` template for the big value (default: the entity's state) |
 | `hide_track` | boolean | `bar` rows only: hide the track/fill/lens, e.g. for a row that is just a tap-action button |
 | `tap_action` | object | Standard-ish action object: `action` (`toggle`/`perform-action`/`navigate`/`more-info`/`none`), `perform_action`, `target`, `data`, and optional `confirmation: { text: "..." }` |
 
@@ -88,6 +90,25 @@ rows:
     state_text: "[[[ return Math.round(parseFloat(entity.state) || 0) + ' %'; ]]]"
 ```
 
+A pair of `stat` tiles, e.g. for a shopping list and open tasks:
+
+```yaml
+type: custom:liquid-glass-tile-card-v2
+layout: grid
+rows:
+  - entity: todo.shopping_list
+    type: stat
+    name: Shopping
+    icon: mdi:cart-outline
+    color: "#43A047"
+    tap_action: { action: navigate, navigation_path: /lovelace/shopping }
+  - entity: todo.chores
+    type: stat
+    name: Tasks
+    icon: mdi:clipboard-check-outline
+    color: "#FFA726"
+```
+
 ## Relationship to v1
 
 `liquid-glass-tile-card` (v1) and this card are separate custom elements (`liquid-glass-tile-card` vs. `liquid-glass-tile-card-v2`) with different config schemas, meant to coexist rather than replace one another — v1 for a single square/chip tile per entity, v2 for grouping several entities into one list-style card. Both can be used side by side on the same dashboard.
@@ -105,6 +126,9 @@ lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
 
 ## Changelog
+
+### 2.11.0
+- New row type `stat`: a number-first tile (big value, label, small icon, short accent line in the row color). The value comes from the entity state or a `value` template; with `max` the accent line grows with it. Value 0 dims the tile. Whole tile is the tap target; long-press opens more-info.
 
 ### 2.10.1
 - Reads the optional theme variables `--lg-radius` and `--lg-backdrop` (see *Theme variables*).
