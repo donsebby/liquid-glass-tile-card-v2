@@ -55,7 +55,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `frame` | boolean | `true` | `false` renders no card panel at all (no background, border, blur, shadow, rounding or padding) — the rows sit directly on whatever is behind, e.g. inside a pop-up that already is a glass panel |
 | `glow` | boolean | `true` | `false` removes the decorative colored glows (active row/icon glow, switch, bar fill, ring halo, stat accent line) for a calmer look; row colors themselves stay |
 | `stat_size` | string | — | `large` makes `stat` rows bigger (44 px numbers, 104 px tiles) for a start page |
-| `look` | string | — (glass) | `solid` switches `toggle` and `bar` rows to calm solid tiles, see *Solid look*. Without it the card keeps the glass look |
+| `look` | string | — (theme, else glass) | `solid` switches `toggle` and `bar` rows to calm solid tiles, see *Solid look*. `glass` forces the glass look. Without it the theme decides (`lg-look`), otherwise glass |
 
 ### Row
 
@@ -121,6 +121,8 @@ rows:
 - **Bar rows** have no track or lens: the tile background itself fills from the left with the level. Drag horizontally anywhere on the tile to change it — relative to where you started, so the value doesn't jump — while a vertical swipe still scrolls the page or pop-up. The value is shown in the subtext while dragging (e.g. "64 %"). A plain tap toggles the light on/off; long-press opens more-info. Same service calls and update rate as the glass slider. `hide_track` bars are plain tap tiles without the fill.
 - `gauge` and `stat` rows keep working next to them, without glass highlights.
 - Transitions are switched off for `prefers-reduced-motion`.
+
+The look can also come from the theme for all Liquid Glass cards at once: set `lg-look: solid` in your Home Assistant theme (CSS variable `--lg-look`, `solid` or `glass`). `look:` on a card overrides it for that card, e.g. `look: glass` keeps one card glass on a solid theme. The card re-reads the variable when the theme or dark mode changes, or when the window event `lg-theme-changed` fires. In the visual editor, *Stil: Wie Theme* leaves `look` out.
 
 ```yaml
 type: custom:liquid-glass-tile-card-v2
@@ -188,6 +190,7 @@ Like the other Liquid Glass cards, this card reads optional CSS variables, so on
 lg-radius: 22px                          # corner radius of the glass panel
 lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
 lg-tile-bg: rgba(40, 44, 52, 0.9)        # tile surface in `look: solid` (a plain colour)
+lg-look: solid                           # solid look for all Liquid Glass cards (card `look:` wins)
 ```
 
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
@@ -195,6 +198,7 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 ## Changelog
 
 ### 2.13.0
+- The look can come from the theme: `lg-look: solid` (CSS variable `--lg-look`) switches every card without its own `look` to the solid look; `look: glass` / `look: solid` on a card overrides it. Re-checked on theme/dark-mode changes and on the `lg-theme-changed` window event. Visual editor: new *Stil* choice *Wie Theme*.
 - Solid look: read-only rows (sensors, numbers) stay calm – no tinted tile, only a tinted icon – so a coloured tile always means "on".
 - New card option `stat_size: large`: bigger, bolder stat numbers (44 px) and labels for a start page; a value of 0 turns number and label to the secondary text colour.
 - New `stat` row option `line`: `false` hides the accent line, a template shows it only when it returns something truthy (e.g. only when a task is overdue).
