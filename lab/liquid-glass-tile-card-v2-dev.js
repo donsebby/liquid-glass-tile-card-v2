@@ -152,6 +152,51 @@ const STYLE = `
   .card.calm .stat-line { box-shadow: none; }
   .card.calm .ring { box-shadow: none; }
   .card.calm .ring-inner.active { filter: none; }
+  /* look: solid - calm Apple-Home-style tiles instead of glass: solid
+     surface, quiet when off, tinted with the row colour when on, a plain
+     round icon that fills with the row colour. No gradients, inset
+     edges, filters or glows (setConfig also sets .calm for solid, so the
+     inline ring halo/bar shadow paths stay off too). Toggle rows have no
+     switch (the whole tile toggles), bar rows have no track/lens (the
+     tile background itself is the level, dragged horizontally). Kept
+     last in the sheet so these win over the glass/.calm rules above. */
+  .card.solid .pill, .card.solid .bar-tile { position:relative; overflow:hidden; isolation:isolate;
+    flex-direction:row; align-items:center; justify-content:flex-start; gap:12px;
+    background: var(--lg-tile-bg, color-mix(in srgb, ${INK} 8%, transparent));
+    border:1px solid rgba(255,255,255,0.04); border-radius: calc(var(--lg-radius, 20px) - 4px);
+    padding:12px 14px; min-height:64px; box-shadow:none; transition: background .2s ease; }
+  .card.solid .pill.active, .card.solid .bar-tile.active { box-shadow:none;
+    background: color-mix(in srgb, var(--c) 20%, var(--lg-tile-bg, color-mix(in srgb, ${INK} 8%, transparent))); }
+  .card.solid .bar-tile { touch-action: pan-y; }
+  .card.solid .left { gap:12px; flex:1 1 auto; }
+  .card.solid .pill .icon-box, .card.solid .bar-tile .icon-box { width:36px; height:36px; border-radius:50%; border:none;
+    background: color-mix(in srgb, ${INK} 10%, transparent); color: var(--secondary-text-color, rgba(255,255,255,0.6));
+    box-shadow:none; filter:none; z-index:1; transition: background .2s ease, color .2s ease; }
+  .card.solid .pill .icon-box.active, .card.solid .bar-tile .icon-box.active { background: var(--c); color:#16181d; box-shadow:none; filter:none; }
+  .card.solid .pill .icon-box ha-icon, .card.solid .bar-tile .icon-box ha-icon { --mdc-icon-size: 20px; }
+  .card.solid .bar-tile .text { position:relative; z-index:1; }
+  .card.solid .pill .name, .card.solid .bar-tile .name { font-size:15px; font-weight:600; color: var(--primary-text-color, rgba(255,255,255,0.95)); }
+  .card.solid .pill .sub, .card.solid .bar-tile .sub { font-size:13px; margin-top:1px; }
+  .card.solid .pill.active .sub, .card.solid .bar-tile.active .sub { color: color-mix(in srgb, var(--c) 55%, ${INK}); }
+  .card.solid .solid-fill { position:absolute; top:0; bottom:0; left:0; width:0; z-index:0; pointer-events:none;
+    background: color-mix(in srgb, var(--c) 30%, transparent); opacity:0; transition: width .2s ease, opacity .2s ease; }
+  .card.solid .bar-tile.active .solid-fill, .card.solid .bar-tile[data-dragging] .solid-fill { opacity:1; }
+  .card.solid .bar-tile[data-dragging] .solid-fill { transition: opacity .2s ease; }
+  /* gauge/stat next to solid tiles: no glass on the ring centre/knob */
+  .card.solid .ring-inner { box-shadow:none; filter:none; }
+  .card.solid .ring-lens { background: var(--primary-text-color, #fff); border:none; backdrop-filter:none; -webkit-backdrop-filter:none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  /* narrow 2-column grids: icon top-left, name/state underneath (the
+     glass pill rules above already do this for .pill; bars follow) */
+  @container (max-width: 430px) {
+    .card.solid .rows.grid .bar-tile { flex-wrap:wrap; row-gap:10px; }
+    .card.solid .rows.grid .bar-tile > .left { display:contents; }
+    .card.solid .rows.grid .bar-tile .text { flex:1 1 100%; }
+    .card.solid .rows.grid .pill, .card.solid .rows.grid .bar-tile { padding:12px; row-gap:10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card.solid .pill, .card.solid .bar-tile, .card.solid .icon-box, .card.solid .solid-fill { transition:none; }
+  }
 `;
 
 class LiquidGlassTileCardV2 extends HTMLElement {
@@ -168,6 +213,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._cardEl.classList.toggle('frameless', config.frame === false);
     this._cardEl.classList.toggle('calm', !this._glowOn());
     this._cardEl.classList.toggle('stat-lg', config.stat_size === 'large');
+    // look: solid is opt-in; anything else keeps the glass look untouched.
+    this._cardEl.classList.toggle('solid', this._isSolid());
     this._buildRows();
     // bg_opacity (0-1, matching v1's convention) controls how solid the
     // card's own backdrop reads - lower values let more of the dashboard
@@ -224,6 +271,23 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this.shadowRoot.addEventListener('click', (e) => {
       // A long-press already opened more-info; don't also run the tap.
       if (this._lpFired) { this._lpFired = false; return; }
+      // A finished (or abandoned) solid-tile drag ends in a click too.
+      if (this._dragFired) { this._dragFired = false; return; }
+
+      // look: solid - toggle and bar tiles are one big tap target: the
+      // row's tap_action if it has one, otherwise toggle for the
+      // controllable domains (same ones the glass switch handles, plus
+      // lights) and more-info for everything else. Icon/name sub-targets
+      // don't have their own meaning here; long-press opens more-info.
+      if (this._isSolid()) {
+        const tile = e.target.closest('.pill[data-row-i], .bar-tile[data-row-i]');
+        if (tile) {
+          const row = this._config.rows[Number(tile.dataset.rowI)];
+          if (row && row.entity) this._handleTap(row);
+          return;
+        }
+      }
+
       // Most specific target first: the dedicated toggle switch always
       // just toggles, no matter what tap_action says (it's its one job).
       const t = e.target.closest('[data-action="toggle"]');
@@ -275,6 +339,15 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     });
     this.shadowRoot.addEventListener('pointerdown', (e) => {
       this._lpFired = false;
+      this._dragFired = false;
+      // Solid bar tiles: the whole tile is the slider (axis-locked, so a
+      // vertical swipe still scrolls) and long-press opens more-info.
+      const solidBar = this._isSolid() && e.target.closest('.bar-tile[data-row-i]');
+      if (solidBar) {
+        this._startTileDrag(e, solidBar);
+        this._startLongPress(e);
+        return;
+      }
       const track = e.target.closest('[data-action="drag-bar"]');
       const ring = e.target.closest('[data-action="drag-ring"]');
       if (track) this._startBarDrag(e, track);
@@ -288,7 +361,9 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // row whose tap toggles. Moving the finger more than a few px (e.g.
   // scrolling the dashboard) cancels it.
   _startLongPress(e) {
-    const pill = e.target.closest('.pill[data-row-i], .stat-tile[data-row-i]');
+    const pill = e.target.closest(this._isSolid()
+      ? '.pill[data-row-i], .stat-tile[data-row-i], .bar-tile[data-row-i]'
+      : '.pill[data-row-i], .stat-tile[data-row-i]');
     if (!pill || e.target.closest('[data-action="toggle"]')) return;
     const row = this._config.rows[Number(pill.dataset.rowI)];
     if (!row || !row.entity) return;
@@ -320,7 +395,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // them are pure CSS (overridden under .card.calm), but the ring halo
   // and the bar fill shadow are written inline, where a stylesheet rule
   // can't win - those paths ask this instead.
-  _glowOn() { return this._config?.glow !== false; }
+  // The solid look has no glows at all, whatever `glow` says.
+  _glowOn() { return this._config?.glow !== false && !this._isSolid(); }
+
+  _isSolid() { return this._config?.look === 'solid'; }
 
   // Localized state text, the same string HA's own tiles/more-info show
   // ("Beendet", "Geschlossen", "Ein", "21,5 °C" - translated, with the
@@ -641,6 +719,109 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     trackEl.addEventListener('pointercancel', onCancel);
   }
 
+  // look: solid - the whole bar tile is the slider. Unlike the glass
+  // track (absolute: value = pointer position on the track), the value
+  // moves relative to where the finger started, Control-Center style, so
+  // grabbing a 70 % light near its left edge doesn't jump it to 5 %.
+  // Axis lock: nothing happens until the pointer moved more than 8 px,
+  // and only horizontally dominant movement becomes a drag; a vertical
+  // swipe is left to the page/pop-up (touch-action: pan-y on the tile).
+  // Service calls, 100 ms throttle, the unthrottled final value and the
+  // per-row `dragging` guard are the same as _startBarDrag's.
+  _startTileDrag(e, tileEl) {
+    const i = Number(tileEl.dataset.rowI);
+    const row = this._config.rows[i];
+    if (!row || !row.entity || row.hide_track || !this._isEditable(row)) return;
+
+    const pointerId = e.pointerId;
+    const x0 = e.clientX, y0 = e.clientY;
+    const startPct = this._pctFor(row, this._hass.states[row.entity]);
+    const fillEl = tileEl.querySelector('.solid-fill');
+    const subEl = tileEl.querySelector('.sub');
+    let dragging = false;
+    let refX = x0, width = 1, pct = startPct;
+    let lastSent = 0;
+    let lastStep = -1;
+    const sendNumeric = (value, throttle) => {
+      const now = Date.now();
+      if (throttle && now - lastSent < 100) return;
+      lastSent = now;
+      this._setNumeric(row, value);
+    };
+    const paint = () => {
+      if (fillEl) fillEl.style.width = `${pct * 100}%`;
+      if (subEl) subEl.textContent = this._dragLabel(row, pct);
+      tileEl.style.setProperty('--glow', Math.max(0.12, pct));
+    };
+    const at = (ev) => Math.max(0, Math.min(1, startPct + (ev.clientX - refX) / width));
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+      if (tileEl.dataset.dragging) {
+        delete tileEl.dataset.dragging;
+        this._patchRows();
+      }
+    };
+    const onMove = (ev) => {
+      if (ev.pointerId !== pointerId) return;
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (!dragging) {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) && !this._lpFired) {
+          dragging = true;
+          refX = ev.clientX; // start from the current value, no jump
+          width = tileEl.getBoundingClientRect().width || 1;
+          tileEl.dataset.dragging = '1';
+          try { tileEl.setPointerCapture(pointerId); } catch (err) { /* window listeners cover it */ }
+          paint();
+        } else if (Math.abs(dy) > 8 || this._lpFired) {
+          // Vertical (scroll) or long-press: not a slider gesture. With a
+          // mouse the release would still click - don't toggle then.
+          if (Math.abs(dy) > 8) this._dragFired = true;
+          cleanup();
+        }
+        return;
+      }
+      if (ev.cancelable) ev.preventDefault();
+      pct = at(ev);
+      paint();
+      const step = Math.floor(pct * 10);
+      if (step !== lastStep) {
+        lastStep = step;
+        this._haptic(step >= 8 ? 'medium' : step >= 4 ? 'light' : 'selection');
+      }
+      sendNumeric(pct, true); // live while dragging, throttled
+    };
+    const onUp = (ev) => {
+      if (ev.pointerId !== pointerId) return;
+      if (dragging) {
+        pct = at(ev);
+        sendNumeric(pct, false); // final value, unthrottled
+        this._dragFired = true; // the click that follows is not a tap
+      }
+      cleanup();
+    };
+    const onCancel = (ev) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+    };
+
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onCancel, true);
+  }
+
+  // Sub text while a solid bar tile is dragged: "64 %" for lights, the
+  // value that will be sent (with the entity's unit) for numbers.
+  _dragLabel(row, pct) {
+    if (this._domain(row.entity) === 'light') return `${Math.round(pct * 100)} %`;
+    const min = row.min ?? 0, max = row.max ?? 100;
+    const value = Math.round((min + (max - min) * pct) * 100) / 100;
+    const unit = this._hass?.states[row.entity]?.attributes?.unit_of_measurement;
+    return unit ? `${value} ${unit}` : String(value);
+  }
+
   _startRingDrag(e, ringEl) {
     const i = Number(ringEl.dataset.i);
     const row = this._config.rows[i];
@@ -755,9 +936,22 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       this._titleEl.hidden = true;
     }
 
+    const solid = this._isSolid();
     this._rowsEl.innerHTML = rows.map((row, i) => {
       const type = row.type || 'toggle';
       const domain = this._domain(row.entity);
+
+      // look: solid - same row skeleton (so _patchRows works unchanged)
+      // minus the glass widgets: no switch (the tile toggles), no
+      // track/lens (a fill layer behind the content shows the level and
+      // the tile itself is dragged, see _startTileDrag).
+      if (solid && (type === 'toggle' || type === 'bar')) {
+        const fillHtml = type === 'bar' && !row.hide_track ? '<div class="solid-fill"></div>' : '';
+        return `<div class="${type === 'bar' ? 'bar-tile' : 'pill'}" data-row-i="${i}">${fillHtml}
+          <div class="left"><div class="icon-box"><ha-icon></ha-icon></div>
+            <div class="text"><div class="name"></div><div class="sub"></div></div></div>
+        </div>`;
+      }
 
       if (type === 'toggle') {
         // Icon is tappable for lights (original behavior) or any row with
@@ -818,6 +1012,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
   _patchRows() {
     if (!this._hass || !this._config || !this._rowsEl) return;
+    const solid = this._isSolid();
 
     this._config.rows.forEach((row, i) => {
       const rowEl = this._rowsEl.querySelector(`[data-row-i="${i}"]`);
@@ -841,7 +1036,9 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const subEl = rowEl.querySelector('.sub');
       const iconEl = rowEl.querySelector('ha-icon');
       if (nameEl) nameEl.textContent = name;
-      if (subEl) subEl.textContent = sub;
+      // Exception: a solid bar tile shows the dragged value ("64 %") in
+      // its sub line while its own drag is running.
+      if (subEl && !(dragging && solid && type === 'bar')) subEl.textContent = sub;
       if (iconEl) iconEl.setAttribute('icon', icon);
 
       if (type === 'toggle') {
@@ -916,6 +1113,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
           fillEl.style.boxShadow = active && this._glowOn() ? '' : 'none';
         }
         if (lensEl) lensEl.style.left = `calc(13px + (100% - 26px) * ${pct})`;
+        const solidFillEl = rowEl.querySelector('.solid-fill');
+        if (solidFillEl) solidFillEl.style.width = `${pct * 100}%`;
       }
     });
   }
@@ -931,8 +1130,8 @@ window.customCards.push({
 });
 
 // ---------------------------------------------------------------------
-// Visual editor. Handles card-level fields (title, layout, bg_opacity,
-// frame, glow)
+// Visual editor. Handles card-level fields (title, layout, look,
+// bg_opacity, frame, glow)
 // and per-row basics (entity via ha-entity-picker with a plain-text
 // fallback, type, name, icon, min/max, hide_track). Anything
 // JS-template-shaped (color/progress/state_text templates, tap_action)
@@ -1031,6 +1230,7 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
         <div class="s"><div class="st">Karte</div>
         <div class="f"><label>Titel</label><input type="text" data-top="title"></div>
         <div class="f"><label>Layout</label><select data-top="layout"><option value="list">Liste</option><option value="grid">Grid (2 Spalten)</option></select></div>
+        <div class="f"><label>Stil</label><select data-top="look"><option value="glass">Glas</option><option value="solid">Solide</option></select></div>
         <div class="f"><label>Transparenz</label><input type="range" min="0" max="1" step="0.05" data-top="bg_opacity"><span data-top-display="bg_opacity" style="font-size:12px;min-width:32px"></span></div>
         <div class="f cb"><label style="min-width:auto">Rahmen (eigenes Panel)</label><input type="checkbox" data-top="frame"></div>
         <div class="f cb"><label style="min-width:auto">Leuchten (Glow)</label><input type="checkbox" data-top="glow"></div>
@@ -1039,6 +1239,9 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
         <div class="hint">Templates (color/progress/state_text) und tap_action bitte im YAML-Modus bearbeiten.</div>`;
       this.shadowRoot.querySelector('[data-top="title"]').addEventListener('input', (e) => this._updateTop('title', e.target.value));
       this.shadowRoot.querySelector('[data-top="layout"]').addEventListener('change', (e) => this._updateTop('layout', e.target.value));
+      // Glass is the default, so picking it removes `look` again; only
+      // `look: solid` is ever written.
+      this.shadowRoot.querySelector('[data-top="look"]').addEventListener('change', (e) => this._updateTop('look', e.target.value === 'solid' ? 'solid' : null));
       this.shadowRoot.querySelector('[data-top="bg_opacity"]').addEventListener('input', (e) => this._updateTop('bg_opacity', parseFloat(e.target.value)));
       // frame/glow default to true, so a ticked box removes the key again
       // (null -> deleted by _updateTop) and only `false` is ever written -
@@ -1052,6 +1255,9 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
     this._setIfDiff(this.shadowRoot.querySelector('[data-top="title"]'), this._config.title || '');
     const layoutEl = this.shadowRoot.querySelector('[data-top="layout"]');
     if (layoutEl.value !== (this._config.layout || 'list')) layoutEl.value = this._config.layout || 'list';
+    const lookEl = this.shadowRoot.querySelector('[data-top="look"]');
+    const lookVal = this._config.look === 'solid' ? 'solid' : 'glass';
+    if (lookEl.value !== lookVal) lookEl.value = lookVal;
     const bgVal = this._config.bg_opacity != null ? this._config.bg_opacity : 0.7;
     this._setIfDiff(this.shadowRoot.querySelector('[data-top="bg_opacity"]'), bgVal);
     this.shadowRoot.querySelector('[data-top-display="bg_opacity"]').textContent = bgVal;
