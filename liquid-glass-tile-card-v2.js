@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.11.0';
+const CARD_VERSION = '2.12.0';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -127,6 +127,25 @@ const STYLE = `
     backdrop-filter: blur(3px) saturate(220%) brightness(1.35); border:1px solid rgba(255,255,255,0.6);
     box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15),
       inset 2px 0 5px rgba(80,200,255,0.32), inset -2px 0 5px rgba(255,90,190,0.3); }
+  /* frame: false - no panel of its own, the rows sit directly on whatever
+     is behind the card (typically a pop-up that already is a glass panel;
+     a second panel inside it reads as a box in a box). */
+  .card.frameless { background: none; border: none; border-radius: 0; padding: 0; box-shadow: none;
+    backdrop-filter: none; -webkit-backdrop-filter: none; }
+  /* glow: false - calmer look without the colored glows around active
+     rows, icons, switches, bars and rings. Row colors (fills, icon tint)
+     stay; only the light bleeding out of them goes. The ring halo and
+     the bar fill shadow are also set inline from JS, which checks the
+     same option (see _glowOn). The inline --glow intensity keeps being
+     written: it still scales the icon background tint (color, not glow),
+     and every shadow/filter that reads it is overridden here. */
+  .card.calm .pill.active, .card.calm .bar-tile.active { box-shadow: none; }
+  .card.calm .icon-box.active { box-shadow: inset 0 1px 1px rgba(255,255,255,0.25); filter: none; }
+  .card.calm .toggle.on { box-shadow: none; }
+  .card.calm .track .fill { box-shadow: none; }
+  .card.calm .stat-line { box-shadow: none; }
+  .card.calm .ring { box-shadow: none; }
+  .card.calm .ring-inner.active { filter: none; }
 `;
 
 class LiquidGlassTileCardV2 extends HTMLElement {
@@ -137,6 +156,11 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._config = config;
     this._lastColor = this._lastColor || {};
     this._build();
+    // Card-level look switches live as classes on .card (CSS in STYLE),
+    // set before the rows are built so the first paint already matches.
+    // Both default to on: only an explicit `false` changes anything.
+    this._cardEl.classList.toggle('frameless', config.frame === false);
+    this._cardEl.classList.toggle('calm', !this._glowOn());
     this._buildRows();
     // bg_opacity (0-1, matching v1's convention) controls how solid the
     // card's own backdrop reads - lower values let more of the dashboard
@@ -285,9 +309,43 @@ class LiquidGlassTileCardV2 extends HTMLElement {
 
   _domain(entityId) { return entityId.split('.')[0]; }
 
+  // `glow: false` on the card turns the decorative glows off. Most of
+  // them are pure CSS (overridden under .card.calm), but the ring halo
+  // and the bar fill shadow are written inline, where a stylesheet rule
+  // can't win - those paths ask this instead.
+  _glowOn() { return this._config?.glow !== false; }
+
+  // Localized state text, the same string HA's own tiles/more-info show
+  // ("Beendet", "Geschlossen", "Ein", "21,5 °C" - translated, with the
+  // entity's display precision and unit). hass.formatEntityState exists
+  // since HA 2023.9; older frontends (or a throwing formatter) fall back
+  // to the card's previous hand-rolled German text, so nothing breaks.
+  _formatState(stateObj) {
+    if (!stateObj) return 'nicht verfügbar';
+    const hass = this._hass;
+    if (hass && typeof hass.formatEntityState === 'function') {
+      try {
+        const text = hass.formatEntityState(stateObj);
+        if (text != null && text !== '') return String(text);
+      } catch (err) {
+        // fall through to the plain formatting below
+      }
+    }
+    const unit = stateObj.attributes.unit_of_measurement;
+    if (['on', 'off', 'open', 'closed'].includes(stateObj.state)) {
+      return stateObj.state === 'open' ? 'Geöffnet' : stateObj.state === 'closed' ? 'Geschlossen' : stateObj.state === 'on' ? 'An' : 'Aus';
+    }
+    return unit ? `${stateObj.state} ${unit}` : stateObj.state;
+  }
+
   // ---------------------------------------------------------------------
   // Templates - `[[[ ... ]]]` runs as a JS expression with `states`,
-  // `hass` and `entity` (this row's own state object) in scope. Anything
+  // `hass`, `entity` (this row's own state object) and `fmt` in scope.
+  // `fmt(entityIdOrStateObj)` returns the localized state text (see
+  // _formatState), so a template can write `return fmt(entity)` or
+  // `return fmt('sensor.x') + ' · ' + ...` without re-translating states
+  // by hand. It is appended as the 4th parameter so templates written
+  // for the original three keep working unchanged. Anything
   // else (a plain string/number) passes straight through unchanged, so
   // existing configs without templates keep working exactly as before.
   // ---------------------------------------------------------------------
@@ -304,7 +362,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (fn === undefined) {
       try {
         // eslint-disable-next-line no-new-func
-        fn = new Function('states', 'hass', 'entity', match[1]);
+        fn = new Function('states', 'hass', 'entity', 'fmt', match[1]);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('liquid-glass-tile-card-v2: template compile error', err);
@@ -316,7 +374,12 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     try {
       const states = this._hass.states;
       const entity = states[entityId];
-      return fn(states, this._hass, entity);
+      // Created once and reading this._hass at call time, so it is
+      // always current without a new closure per template run.
+      if (!this._fmt) {
+        this._fmt = (x) => this._formatState(typeof x === 'string' ? this._hass.states[x] : x);
+      }
+      return fn(states, this._hass, entity, this._fmt);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('liquid-glass-tile-card-v2: template error', err);
@@ -472,18 +535,13 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     if (row.power_entity) {
       const powerObj = this._hass.states[row.power_entity];
       const watts = powerObj ? parseFloat(powerObj.state) : NaN;
-      if (Number.isFinite(watts)) return `${watts.toFixed(1)} W`;
+      if (Number.isFinite(watts)) return this._formatState(powerObj);
     }
     if (row.state_text) {
       const resolved = this._resolveTemplate(row.state_text, row.entity);
       if (resolved != null && resolved !== '') return resolved;
     }
-    if (!stateObj) return 'nicht verfügbar';
-    const unit = stateObj.attributes.unit_of_measurement;
-    if (['on', 'off', 'open', 'closed'].includes(stateObj.state)) {
-      return stateObj.state === 'open' ? 'Geöffnet' : stateObj.state === 'closed' ? 'Geschlossen' : stateObj.state === 'on' ? 'An' : 'Aus';
-    }
-    return unit ? `${stateObj.state} ${unit}` : stateObj.state;
+    return this._formatState(stateObj);
   }
 
   _haptic(detail) {
@@ -648,7 +706,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // glow, kept in its own helper so render-time and live-drag-time stay
   // in sync instead of duplicating the formula in two places.
   _ringHaloShadow(active, color, pct) {
-    if (!active) return 'none';
+    if (!active || !this._glowOn()) return 'none';
     const p = Math.max(0.12, pct);
     return `0 0 ${Math.round(10 + p * 12)}px -4px color-mix(in srgb, ${color} ${Math.round(35 + p * 45)}%, transparent)`;
   }
@@ -844,7 +902,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         const lensEl = rowEl.querySelector('.lens');
         if (fillEl) {
           fillEl.style.width = `${pct * 100}%`;
-          fillEl.style.boxShadow = active ? '' : 'none';
+          fillEl.style.boxShadow = active && this._glowOn() ? '' : 'none';
         }
         if (lensEl) lensEl.style.left = `calc(13px + (100% - 26px) * ${pct})`;
       }
@@ -862,7 +920,8 @@ window.customCards.push({
 });
 
 // ---------------------------------------------------------------------
-// Visual editor. Handles card-level fields (title, layout, bg_opacity)
+// Visual editor. Handles card-level fields (title, layout, bg_opacity,
+// frame, glow)
 // and per-row basics (entity via ha-entity-picker with a plain-text
 // fallback, type, name, icon, min/max, hide_track). Anything
 // JS-template-shaped (color/progress/state_text templates, tap_action)
@@ -962,12 +1021,20 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
         <div class="f"><label>Titel</label><input type="text" data-top="title"></div>
         <div class="f"><label>Layout</label><select data-top="layout"><option value="list">Liste</option><option value="grid">Grid (2 Spalten)</option></select></div>
         <div class="f"><label>Transparenz</label><input type="range" min="0" max="1" step="0.05" data-top="bg_opacity"><span data-top-display="bg_opacity" style="font-size:12px;min-width:32px"></span></div>
+        <div class="f cb"><label style="min-width:auto">Rahmen (eigenes Panel)</label><input type="checkbox" data-top="frame"></div>
+        <div class="f cb"><label style="min-width:auto">Leuchten (Glow)</label><input type="checkbox" data-top="glow"></div>
         </div>
         <div class="s"><div class="st">Zeilen</div><div class="rh2"></div><button class="ab" type="button">+ Zeile</button></div>
         <div class="hint">Templates (color/progress/state_text) und tap_action bitte im YAML-Modus bearbeiten.</div>`;
       this.shadowRoot.querySelector('[data-top="title"]').addEventListener('input', (e) => this._updateTop('title', e.target.value));
       this.shadowRoot.querySelector('[data-top="layout"]').addEventListener('change', (e) => this._updateTop('layout', e.target.value));
       this.shadowRoot.querySelector('[data-top="bg_opacity"]').addEventListener('input', (e) => this._updateTop('bg_opacity', parseFloat(e.target.value)));
+      // frame/glow default to true, so a ticked box removes the key again
+      // (null -> deleted by _updateTop) and only `false` is ever written -
+      // keeps configs saved from the editor as small as hand-written ones.
+      ['frame', 'glow'].forEach((key) => {
+        this.shadowRoot.querySelector(`[data-top="${key}"]`).addEventListener('change', (e) => this._updateTop(key, e.target.checked ? null : false));
+      });
       this.shadowRoot.querySelector('.ab').addEventListener('click', () => this._addRow());
     }
 
@@ -977,6 +1044,8 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
     const bgVal = this._config.bg_opacity != null ? this._config.bg_opacity : 0.7;
     this._setIfDiff(this.shadowRoot.querySelector('[data-top="bg_opacity"]'), bgVal);
     this.shadowRoot.querySelector('[data-top-display="bg_opacity"]').textContent = bgVal;
+    this.shadowRoot.querySelector('[data-top="frame"]').checked = this._config.frame !== false;
+    this.shadowRoot.querySelector('[data-top="glow"]').checked = this._config.glow !== false;
 
     const rows = this._config.rows || [];
     if (rows.length !== this._rowCount) {

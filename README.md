@@ -17,12 +17,14 @@ Built iteratively in conversation with Claude (Anthropic).
   - **gauge** — circular ring gauge with a draggable glass lens, same data model as `bar` in a compact ring form
   - **stat** — number-first tile for counts ("7 open items"): big value, label underneath, small icon top-right and a short accent line in the row color; value 0 dims it
 - Rows are draggable (settable) whenever they represent an adjustable value (`light` brightness, `number`/`input_number`) and have no `progress` template — rows with a `progress` template are always read-only, driven entirely by the template
-- Per-row JS templates (`[[[ ... ]]]`, with `states`/`hass`/`entity` in scope) for `color`, `progress`, and `state_text` — same template convention as v1
+- Per-row JS templates (`[[[ ... ]]]`, with `states`/`hass`/`entity`/`fmt` in scope) for `color`, `progress`, and `state_text` — same template convention as v1
 - Live color for dimmable/color lights: reads the current `rgb_color`/`hs_color` straight off live state on every update, same as v1 - no caching, no async lookups, so it can never show a stale color
 - Tapping a row's name runs the row's `tap_action` if it has one, otherwise opens Home Assistant's own more-info dialog (color wheel, color temperature, etc.) - dragging the row itself only ever sets brightness/value
 - Long-press (½ s) on a toggle pill always opens more-info, even when a tap toggles
 - On phones, 2-column grids switch toggle pills to a Control-Center layout (icon and switch on top, name and state on their own line), so names aren't cut to a few letters
-- Visual editor for title, layout, transparency and the rows themselves (templates and `tap_action` stay YAML-only)
+- Subtext shows states localized by Home Assistant itself ("Geschlossen", "Beendet", ...)
+- `frame: false` (no panel, for pop-ups) and `glow: false` (no colored glows) for calmer placements
+- Visual editor for title, layout, transparency, frame/glow and the rows themselves (templates and `tap_action` stay YAML-only)
 - Confirmation dialogs (`tap_action.confirmation`) for destructive actions
 - `bg_opacity` (0–1) to control how transparent the card's own backdrop reads, e.g. to match more transparent native cards on the same view
 - 2-column grid layout option (`layout: "grid"`) for compact multi-row cards
@@ -49,6 +51,8 @@ Built iteratively in conversation with Claude (Anthropic).
 | `layout` | string | `list` | `grid` arranges rows in a 2-column grid instead of a vertical list |
 | `title` | string | — | Optional card title shown above the rows |
 | `bg_opacity` | number | `0.7` | 0–1, controls the card's own background opacity |
+| `frame` | boolean | `true` | `false` renders no card panel at all (no background, border, blur, shadow, rounding or padding) — the rows sit directly on whatever is behind, e.g. inside a pop-up that already is a glass panel |
+| `glow` | boolean | `true` | `false` removes the decorative colored glows (active row/icon glow, switch, bar fill, ring halo, stat accent line) for a calmer look; row colors themselves stay |
 
 ### Row
 
@@ -67,7 +71,42 @@ Built iteratively in conversation with Claude (Anthropic).
 | `hide_track` | boolean | `bar` rows only: hide the track/fill/lens, e.g. for a row that is just a tap-action button |
 | `tap_action` | object | Standard-ish action object: `action` (`toggle`/`perform-action`/`navigate`/`more-info`/`none`), `perform_action`, `target`, `data`, and optional `confirmation: { text: "..." }` |
 
-Templates run as `new Function('states', 'hass', 'entity', code)` — `entity` is this row's own state object, `states` is the full states dict, matching v1's template convention.
+Templates run as `new Function('states', 'hass', 'entity', 'fmt', code)` — `entity` is this row's own state object, `states` is the full states dict, matching v1's template convention. `fmt(entityIdOrStateObj)` returns the state as Home Assistant itself displays it (translated, with unit and display precision), e.g. `[[[ return fmt(entity) ]]]` or `[[[ return fmt('sensor.dishwasher_remaining') + ' left' ]]]`.
+
+### State text
+
+Without `state_text`/`power_entity`, the subtext line shows the state formatted by Home Assistant (`hass.formatEntityState`): translated into your HA language ("Beendet", "Geschlossen", "Ein", "Angedockt" in German), with the entity's unit and display precision. On frontends older than HA 2023.9, which lack that formatter, the card falls back to its previous plain text (raw state + unit, `on`/`off`/`open`/`closed` as German words).
+
+### Entities by label (templates)
+
+There is no dedicated label option, but templates get `hass`, and `hass.entities[id].labels` holds each entity's label IDs. E.g. a `stat` row counting the lights with the label `lampen` that are on:
+
+```yaml
+- entity: sun.sun            # any entity; the value comes from the template
+  type: stat
+  name: Lights on
+  icon: mdi:lightbulb-group
+  value: >-
+    [[[
+      const ids = Object.keys(hass.entities).filter((e) => hass.entities[e].labels?.includes('lampen'));
+      return ids.filter((e) => states[e]?.state === 'on').length;
+    ]]]
+```
+
+Use the label's ID (Settings → Labels; usually the lowercased name), not its display name.
+
+### Pop-ups
+
+Inside a pop-up that is already a glass panel, `frame: false` avoids a box in a box, and `glow: false` keeps it calm:
+
+```yaml
+type: custom:liquid-glass-tile-card-v2
+frame: false
+glow: false
+rows:
+  - entity: vacuum.robbi
+  - entity: cover.garage
+```
 
 ### Example
 
@@ -126,6 +165,15 @@ lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
 
 ## Changelog
+
+### 2.12.0
+- States are now localized by default: without `state_text`/`power_entity` the subtext uses Home Assistant's own `hass.formatEntityState` (translated, e.g. "Beendet", "Geschlossen", "Ein", "Angedockt", with unit and display precision). Older frontends without it keep the previous text. Note: this changes the default subtext of existing rows (e.g. "An" becomes HA's "Ein", numbers use your locale's decimal separator).
+- `power_entity` text is formatted by Home Assistant too (locale decimal separator and the sensor's display precision, e.g. "11,0 W").
+- Templates get a 4th parameter `fmt(entityIdOrStateObj)` returning that localized state text, e.g. `[[[ return fmt(entity) ]]]`. The existing `states`/`hass`/`entity` parameters are unchanged.
+- New card option `frame: false`: no card panel (background, border, blur, shadow, rounding, padding), for use inside pop-ups.
+- New card option `glow: false`: removes the decorative colored glows (active rows/icons, switches, bar fill, ring halo, stat line).
+- Visual editor: checkboxes for `frame` and `glow` (only `false` is written to the config).
+- README: how to build entity lists from a label inside a template.
 
 ### 2.11.0
 - New row type `stat`: a number-first tile (big value, label, small icon, short accent line in the row color). The value comes from the entity state or a `value` template; with `max` the accent line grows with it. Value 0 dims the tile. Whole tile is the tap target; long-press opens more-info.
