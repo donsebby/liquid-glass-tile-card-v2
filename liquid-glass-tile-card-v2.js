@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.10.1';
+const CARD_VERSION = '2.11.0';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -98,6 +98,21 @@ const STYLE = `
     backdrop-filter: blur(3px) saturate(220%) brightness(1.35); border:1px solid rgba(255,255,255,0.6);
     box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.8), inset 0 -2px 3px rgba(0,0,0,0.15),
       inset 2px 0 5px rgba(80,200,255,0.32), inset -2px 0 5px rgba(255,90,190,0.3); }
+  /* stat: a number-first tile (counts like "7 open items") - big value,
+     label underneath, small icon top-right and a short accent line in
+     the row color. Value 0 dims the number and the line. */
+  .stat-tile { position:relative; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; cursor:pointer;
+    background: color-mix(in srgb, ${INK} 7%, transparent); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
+    border-radius:16px; padding:12px 14px; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  .stat-tile .stat-icon { position:absolute; top:12px; right:12px; --mdc-icon-size:18px; color: var(--secondary-text-color, rgba(255,255,255,0.6)); }
+  .stat-value { color: var(--primary-text-color, #fff); font-size:30px; font-weight:300; line-height:1; letter-spacing:-0.5px;
+    font-variant-numeric: tabular-nums; padding-right:24px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition: opacity .2s ease; }
+  .stat-tile .name { font-weight:500; color: var(--secondary-text-color, rgba(255,255,255,0.7)); margin-top:5px; }
+  .stat-tile .sub:empty { display:none; }
+  .stat-line { height:3px; border-radius:2px; margin-top:10px; width:28px; max-width:100%; background: var(--c);
+    box-shadow: 0 0 8px -1px var(--c); transition: width .3s ease, background .2s ease; }
+  .stat-tile.zero .stat-value { opacity:0.45; }
+  .stat-tile.zero .stat-line { background: color-mix(in srgb, ${INK} 18%, transparent); box-shadow:none; }
   .gauge-tile { display:flex; flex-direction:column; align-items:center; cursor:pointer; min-width:0; box-sizing:border-box; }
   .ring { width:74px; height:74px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center;
     background: conic-gradient(var(--c) 0deg, var(--pct), transparent 0deg);
@@ -242,7 +257,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // row whose tap toggles. Moving the finger more than a few px (e.g.
   // scrolling the dashboard) cancels it.
   _startLongPress(e) {
-    const pill = e.target.closest('.pill[data-row-i]');
+    const pill = e.target.closest('.pill[data-row-i], .stat-tile[data-row-i]');
     if (!pill || e.target.closest('[data-action="toggle"]')) return;
     const row = this._config.rows[Number(pill.dataset.rowI)];
     if (!row || !row.entity) return;
@@ -694,6 +709,14 @@ class LiquidGlassTileCardV2 extends HTMLElement {
           ${switchHtml}
         </div>`;
       }
+      if (type === 'stat') {
+        return `<div class="stat-tile" data-row-i="${i}">
+          <ha-icon class="stat-icon"></ha-icon>
+          <div class="stat-value"></div>
+          <div class="name" data-action="name-tap" data-i="${i}"></div><div class="sub"></div>
+          <div class="stat-line"></div>
+        </div>`;
+      }
       if (type === 'gauge') {
         return `<div class="gauge-tile" data-row-i="${i}">
           <div class="ring" data-action="drag-ring" data-i="${i}">
@@ -740,7 +763,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const name = row.name || stateObj?.attributes?.friendly_name || row.entity;
       const icon = row.icon || stateObj?.attributes?.icon || 'mdi:help-circle-outline';
       const type = row.type || 'toggle';
-      const sub = this._subText(row, stateObj);
+      const type0 = row.type || 'toggle';
+      const sub = type0 === 'stat' ? (row.state_text ? (this._resolveTemplate(row.state_text, row.entity) ?? '') : '') : this._subText(row, stateObj);
       const active = this._isActive(row, stateObj);
       // Only bar/gauge rows are draggable, and only this specific row's
       // own element carries the flag while its own drag is in progress.
@@ -763,6 +787,22 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         if (iconBox) iconBox.classList.toggle('active', on);
         const toggleEl = rowEl.querySelector('.toggle');
         if (toggleEl) toggleEl.classList.toggle('on', on);
+        return;
+      }
+
+      if (type === 'stat') {
+        const raw = row.value != null ? this._resolveTemplate(row.value, row.entity) : stateObj?.state;
+        const num = typeof raw === 'number' ? raw : parseFloat(raw);
+        const valEl = rowEl.querySelector('.stat-value');
+        if (valEl) valEl.textContent = raw == null || raw === 'unavailable' || raw === 'unknown' ? '–' : String(raw);
+        rowEl.style.setProperty('--c', color);
+        rowEl.classList.toggle('zero', !Number.isFinite(num) || num <= 0);
+        const lineEl = rowEl.querySelector('.stat-line');
+        // With `max` the line grows with the value (value/max of the tile
+        // width); without it it stays a short fixed accent.
+        if (lineEl) lineEl.style.width = row.max != null && Number.isFinite(num) && num > 0
+          ? `${Math.max(8, Math.min(100, (num - (row.min ?? 0)) / ((row.max - (row.min ?? 0)) || 1) * 100))}%`
+          : '';
         return;
       }
 
@@ -954,7 +994,7 @@ class LiquidGlassTileCardV2Editor extends HTMLElement {
       <div class="rh"><b>Zeile ${i + 1}</b>
         <span class="ra"><button type="button" data-act="up">\u25b2</button><button type="button" data-act="down">\u25bc</button><button type="button" data-act="del">\u2715</button></span></div>
       <div class="f"><label>Entity</label><div class="ep-host" data-ep="${i}"></div></div>
-      <div class="f"><label>Typ</label><select data-field="type"><option value="toggle">toggle</option><option value="bar">bar</option><option value="gauge">gauge</option></select></div>
+      <div class="f"><label>Typ</label><select data-field="type"><option value="toggle">toggle</option><option value="bar">bar</option><option value="gauge">gauge</option><option value="stat">stat</option></select></div>
       <div class="f"><label>Name</label><input type="text" data-field="name" placeholder="(Entity-Name)"></div>
       <div class="f"><label>Icon</label><input type="text" data-field="icon" placeholder="mdi:..."></div>
       <div class="f" data-only="bar,gauge"><label>Min</label><input type="number" data-field="min" placeholder="0"><label>Max</label><input type="number" data-field="max" placeholder="100"></div>
