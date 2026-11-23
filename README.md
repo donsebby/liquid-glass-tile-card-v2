@@ -195,6 +195,7 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 ## Changelog
 
 ### 2.13.0
+- Solid look: read-only rows (sensors, numbers) stay calm – no tinted tile, only a tinted icon – so a coloured tile always means "on".
 - New card option `stat_size: large`: bigger, bolder stat numbers (44 px) and labels for a start page; a value of 0 turns number and label to the secondary text colour.
 - New `stat` row option `line`: `false` hides the accent line, a template shows it only when it returns something truthy (e.g. only when a task is overdue).
 - Stat tiles read the optional CSS variable `--lg-stat-bg` for their background, so a theme or an ambience card can give them a solid surface.

@@ -182,6 +182,13 @@ const STYLE = `
     background: color-mix(in srgb, var(--c) 30%, transparent); opacity:0; transition: width .2s ease, opacity .2s ease; }
   .card.solid .bar-tile.active .solid-fill, .card.solid .bar-tile[data-dragging] .solid-fill { opacity:1; }
   .card.solid .bar-tile[data-dragging] .solid-fill { transition: opacity .2s ease; }
+  /* Read-only rows (sensors, numbers ...) have no on/off: they stay calm -
+     no tinted tile, only a tinted icon - so colour keeps meaning "on". */
+  .card.solid .pill.info, .card.solid .bar-tile.info { background: var(--lg-tile-bg, color-mix(in srgb, ${INK} 8%, transparent)); }
+  .card.solid .pill.info .icon-box, .card.solid .bar-tile.info .icon-box,
+  .card.solid .pill.info .icon-box.active, .card.solid .bar-tile.info .icon-box.active { background: color-mix(in srgb, var(--c) 20%, transparent); color: var(--c); }
+  .card.solid .pill.info .sub, .card.solid .bar-tile.info .sub { color: var(--secondary-text-color, rgba(255,255,255,0.6)); }
+  .card.solid .bar-tile.info .solid-fill { background: color-mix(in srgb, var(--c) 16%, transparent); }
   /* gauge/stat next to solid tiles: no glass on the ring centre/knob */
   .card.solid .ring-inner { box-shadow:none; filter:none; }
   .card.solid .ring-lens { background: var(--primary-text-color, #fff); border:none; backdrop-filter:none; -webkit-backdrop-filter:none;
@@ -527,6 +534,13 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   // otherwise the tile sits neutral/grey. Numbers, input_numbers and
   // plain sensors have no "off" state to speak of, so they always keep
   // their accent color.
+  // Rows whose entity has a real on/off (lights, switches, binary sensors,
+  // timers ...); everything else is read-only information.
+  _isSwitchable(row) {
+    const domain = this._domain(row.entity);
+    return domain === 'light' || domain === 'binary_sensor' || domain === 'timer' || TOGGLE_DOMAINS.includes(domain);
+  }
+
   _isActive(row, stateObj) {
     const domain = this._domain(row.entity);
     if (domain === 'light' || domain === 'binary_sensor' || domain === 'timer' || TOGGLE_DOMAINS.includes(domain)) {
@@ -1026,6 +1040,8 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const type0 = row.type || 'toggle';
       const sub = type0 === 'stat' ? (row.state_text ? (this._resolveTemplate(row.state_text, row.entity) ?? '') : '') : this._subText(row, stateObj);
       const active = this._isActive(row, stateObj);
+      // look: solid - read-only rows get the calm "info" style (see CSS).
+      if (solid && (type === 'toggle' || type === 'bar')) rowEl.classList.toggle('info', !this._isSwitchable(row));
       // Only bar/gauge rows are draggable, and only this specific row's
       // own element carries the flag while its own drag is in progress.
       const dragging = rowEl.dataset.dragging === '1';
