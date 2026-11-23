@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.12.0-dev';
+const CARD_VERSION = '2.13.0-dev';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -102,7 +102,7 @@ const STYLE = `
      label underneath, small icon top-right and a short accent line in
      the row color. Value 0 dims the number and the line. */
   .stat-tile { position:relative; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; cursor:pointer;
-    background: color-mix(in srgb, ${INK} 7%, transparent); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
+    background: var(--lg-stat-bg, color-mix(in srgb, ${INK} 7%, transparent)); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
     border-radius:16px; padding:12px 14px; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   .stat-tile .stat-icon { position:absolute; top:12px; right:12px; --mdc-icon-size:18px; color: var(--secondary-text-color, rgba(255,255,255,0.6)); }
   .stat-value { color: var(--primary-text-color, #fff); font-size:30px; font-weight:300; line-height:1; letter-spacing:-0.5px;
@@ -113,6 +113,12 @@ const STYLE = `
     box-shadow: 0 0 8px -1px var(--c); transition: width .3s ease, background .2s ease; }
   .stat-tile.zero .stat-value { opacity:0.45; }
   .stat-tile.zero .stat-line { background: color-mix(in srgb, ${INK} 18%, transparent); box-shadow:none; }
+  /* stat_size: large - bigger, bolder numbers for a start page */
+  .card.stat-lg .stat-tile { min-height:104px; padding:14px 16px; border-radius: calc(var(--lg-radius, 20px) - 2px); }
+  .card.stat-lg .stat-value { font-size:44px; font-weight:600; letter-spacing:-0.02em; margin-top:auto; }
+  .card.stat-lg .stat-tile .name { font-size:15px; margin-top:6px; }
+  .card.stat-lg .stat-tile .stat-icon { top:14px; right:14px; --mdc-icon-size:20px; }
+  .card.stat-lg .stat-tile.zero .stat-value, .card.stat-lg .stat-tile.zero .name { opacity:1; color: var(--secondary-text-color, rgba(255,255,255,0.6)); }
   .gauge-tile { display:flex; flex-direction:column; align-items:center; cursor:pointer; min-width:0; box-sizing:border-box; }
   .ring { width:74px; height:74px; border-radius:50%; position:relative; display:flex; align-items:center; justify-content:center;
     background: conic-gradient(var(--c) 0deg, var(--pct), transparent 0deg);
@@ -161,6 +167,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     // Both default to on: only an explicit `false` changes anything.
     this._cardEl.classList.toggle('frameless', config.frame === false);
     this._cardEl.classList.toggle('calm', !this._glowOn());
+    this._cardEl.classList.toggle('stat-lg', config.stat_size === 'large');
     this._buildRows();
     // bg_opacity (0-1, matching v1's convention) controls how solid the
     // card's own backdrop reads - lower values let more of the dashboard
@@ -858,6 +865,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         const lineEl = rowEl.querySelector('.stat-line');
         // With `max` the line grows with the value (value/max of the tile
         // width); without it it stays a short fixed accent.
+        // `line: false` hides the accent line; a template decides per state
+        // (e.g. only when something is overdue).
+        const showLine = row.line == null ? true : (typeof row.line === 'string' ? !!this._resolveTemplate(row.line, row.entity) : !!row.line);
+        if (lineEl) lineEl.style.display = showLine ? '' : 'none';
         if (lineEl) lineEl.style.width = row.max != null && Number.isFinite(num) && num > 0
           ? `${Math.max(8, Math.min(100, (num - (row.min ?? 0)) / ((row.max - (row.min ?? 0)) || 1) * 100))}%`
           : '';
