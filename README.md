@@ -92,9 +92,22 @@ rows:
 
 `liquid-glass-tile-card` (v1) and this card are separate custom elements (`liquid-glass-tile-card` vs. `liquid-glass-tile-card-v2`) with different config schemas, meant to coexist rather than replace one another — v1 for a single square/chip tile per entity, v2 for grouping several entities into one list-style card. Both can be used side by side on the same dashboard.
 
+## Theme variables
+
+Like the other Liquid Glass cards, this card reads two optional CSS variables, so one theme can align all of them:
+
+```yaml
+# in your Home Assistant theme
+lg-radius: 22px                          # corner radius of the glass panel
+lg-backdrop: blur(22px) saturate(180%)   # blur/saturation behind the panel
+```
+
+Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
+
 ## Changelog
 
 ### 2.10.1
+- Reads the optional theme variables `--lg-radius` and `--lg-backdrop` (see *Theme variables*).
 - Phones: in `layout: grid`, toggle pills narrower than ~430px card width switch to a Control-Center layout (icon + switch on top, name/state full width underneath), so long names are no longer cut to a few characters. Uses a CSS container query; wider cards look exactly as before.
 - Long-press (500 ms) on a toggle pill opens more-info (with a haptic tick); moving the finger cancels it, and the tap that ends a long-press no longer also toggles.
 - Subtext is truncated with an ellipsis instead of wrapping, and pills no longer trigger text selection/callouts on long-press in iOS.

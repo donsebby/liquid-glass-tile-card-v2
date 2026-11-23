@@ -45,8 +45,8 @@ const INK = 'var(--primary-text-color, #fff)';
 const STYLE = `
   :host { display:block; font-family: var(--paper-font-body1_-_font-family, Helvetica, Arial, sans-serif); }
   .card { background: color-mix(in oklch, var(--card-background-color, #17181f) var(--bg-pct, 70%), transparent);
-    backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%);
-    border: 1px solid color-mix(in srgb, ${INK} 12%, transparent); border-radius: 20px;
+    backdrop-filter: var(--lg-backdrop, blur(22px) saturate(180%)); -webkit-backdrop-filter: var(--lg-backdrop, blur(22px) saturate(180%));
+    border: 1px solid color-mix(in srgb, ${INK} 12%, transparent); border-radius: var(--lg-radius, 20px);
     padding: 18px; box-shadow: 0 20px 40px -20px rgba(0,0,0,0.35), inset 0 1px 0 color-mix(in srgb, ${INK} 10%, transparent); }
   .title { color: var(--primary-text-color, rgba(255,255,255,0.9)); font-size: 14px; font-weight: 600; margin-bottom: 14px; opacity: 0.85; }
   .rows { display:flex; flex-direction:column; gap:10px; }
