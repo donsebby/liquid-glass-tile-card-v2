@@ -197,6 +197,9 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 
 ## Changelog
 
+### 2.13.1
+- Stat tiles read the Pane family variable `--pane-backdrop` (e.g. `blur(18px)`), so a frosted theme blurs what is behind them like the other cards. Without it nothing changes.
+
 ### 2.13.0
 - The look can come from the theme: `lg-look: solid` (CSS variable `--lg-look`) switches every card without its own `look` to the solid look; `look: glass` / `look: solid` on a card overrides it. Re-checked on theme/dark-mode changes and on the `lg-theme-changed` window event. Visual editor: new *Stil* choice *Wie Theme*.
 - Solid look: read-only rows (sensors, numbers) stay calm – no tinted tile, only a tinted icon – so a coloured tile always means "on".
