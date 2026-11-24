@@ -52,6 +52,7 @@ Built iteratively in conversation with Claude (Anthropic).
 | `layout` | string | `list` | `grid` arranges rows in a 2-column grid instead of a vertical list |
 | `title` | string | — | Optional card title shown above the rows |
 | `bg_opacity` | number | `0.7` | 0–1, controls the card's own background opacity |
+| `stat_surface` | string | — | `theme`: stat tiles take the theme's card surface (see changelog 2.13.2) |
 | `frame` | boolean | `true` | `false` renders no card panel at all (no background, border, blur, shadow, rounding or padding) — the rows sit directly on whatever is behind, e.g. inside a pop-up that already is a glass panel |
 | `glow` | boolean | `true` | `false` removes the decorative colored glows (active row/icon glow, switch, bar fill, ring halo, stat accent line) for a calmer look; row colors themselves stay |
 | `stat_size` | string | — | `large` makes `stat` rows bigger (44 px numbers, 104 px tiles) for a start page |
@@ -196,6 +197,9 @@ lg-look: solid                           # solid look for all Liquid Glass cards
 Without them nothing changes. Options set on the card itself (e.g. `blur`) still win.
 
 ## Changelog
+
+### 2.13.2
+- New option `stat_surface: theme`: stat tiles become cards of their own with the theme's card surface, blur, border, shadow and rounding (`ha-card-background`, `ha-card-backdrop-filter`, `ha-card-border-color`, `ha-card-box-shadow`, `ha-card-border-radius`; Pane variables first). Meant for stat tiles with `frame: false` placed directly on the dashboard.
 
 ### 2.13.1
 - Stat tiles read the Pane family variable `--pane-backdrop` (e.g. `blur(18px)`), so a frosted theme blurs what is behind them like the other cards. Without it nothing changes.
