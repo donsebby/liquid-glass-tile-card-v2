@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.13.1-dev';
+const CARD_VERSION = '2.13.2-dev';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -206,6 +206,13 @@ const STYLE = `
   @media (prefers-reduced-motion: reduce) {
     .card.solid .pill, .card.solid .bar-tile, .card.solid .icon-box, .card.solid .solid-fill { transition:none; }
   }
+  /* stat_surface: theme - each stat tile is a card of its own with the theme's
+     card surface, blur, border, shadow and rounding (for stat tiles placed
+     straight on a dashboard background with frame: false). */
+  .card.stat-theme .stat-tile { background: var(--lg-stat-bg, var(--pane-surface, var(--ha-card-background, var(--card-background-color, color-mix(in srgb, ${INK} 7%, transparent)))));
+    backdrop-filter: var(--pane-backdrop, var(--ha-card-backdrop-filter, none)); -webkit-backdrop-filter: var(--pane-backdrop, var(--ha-card-backdrop-filter, none));
+    border: var(--ha-card-border-width, 1px) solid var(--pane-border, var(--ha-card-border-color, color-mix(in srgb, ${INK} 10%, transparent)));
+    box-shadow: var(--ha-card-box-shadow, none); border-radius: var(--pane-radius, var(--ha-card-border-radius, 16px)); }
 `;
 
 class LiquidGlassTileCardV2 extends HTMLElement {
@@ -226,6 +233,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._cardEl.classList.toggle('frameless', config.frame === false);
     this._cardEl.classList.toggle('calm', !this._glowOn());
     this._cardEl.classList.toggle('stat-lg', config.stat_size === 'large');
+    this._cardEl.classList.toggle('stat-theme', config.stat_surface === 'theme');
     // look: solid is opt-in (config `look`, else the theme's --lg-look);
     // anything else keeps the glass look untouched.
     this._cardEl.classList.toggle('solid', this._isSolid());
