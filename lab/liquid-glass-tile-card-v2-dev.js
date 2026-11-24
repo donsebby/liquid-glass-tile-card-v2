@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.13.0-dev';
+const CARD_VERSION = '2.13.1-dev';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -103,6 +103,8 @@ const STYLE = `
      the row color. Value 0 dims the number and the line. */
   .stat-tile { position:relative; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; cursor:pointer;
     background: var(--lg-stat-bg, color-mix(in srgb, ${INK} 7%, transparent)); border:1px solid color-mix(in srgb, ${INK} 10%, transparent);
+    /* Pane family: a theme or ambience card can blur what is behind the tile. */
+    backdrop-filter: var(--pane-backdrop, none); -webkit-backdrop-filter: var(--pane-backdrop, none);
     border-radius:16px; padding:12px 14px; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   .stat-tile .stat-icon { position:absolute; top:12px; right:12px; --mdc-icon-size:18px; color: var(--secondary-text-color, rgba(255,255,255,0.6)); }
   .stat-value { color: var(--primary-text-color, #fff); font-size:30px; font-weight:300; line-height:1; letter-spacing:-0.5px;
