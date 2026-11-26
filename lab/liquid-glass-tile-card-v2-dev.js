@@ -40,6 +40,15 @@ function hsToRgbCss([h, s]) {
 // Neutral surfaces are mixed with the theme's own text color instead of a
 // hardcoded white, so they stay visible on both dark AND light HA themes
 // (a flat rgba(255,255,255,x) all but disappears on a light background).
+// Writes text only when it changed. `textContent = x` always swaps the
+// text node, even for the same string, and every swap makes the browser
+// lay the card out again. _patchRows() runs on every hass tick (several
+// times a second), which made scrolling stutter in pop-ups on iOS.
+function setText(el, value) {
+  const v = value == null ? '' : String(value);
+  if (el.textContent !== v) el.textContent = v;
+}
+
 const INK = 'var(--primary-text-color, #fff)';
 
 const STYLE = `
@@ -206,13 +215,6 @@ const STYLE = `
   @media (prefers-reduced-motion: reduce) {
     .card.solid .pill, .card.solid .bar-tile, .card.solid .icon-box, .card.solid .solid-fill { transition:none; }
   }
-  /* stat_surface: theme - each stat tile is a card of its own with the theme's
-     card surface, blur, border, shadow and rounding (for stat tiles placed
-     straight on a dashboard background with frame: false). */
-  .card.stat-theme .stat-tile { background: var(--lg-stat-bg, var(--pane-surface, var(--ha-card-background, var(--card-background-color, color-mix(in srgb, ${INK} 7%, transparent)))));
-    backdrop-filter: var(--pane-backdrop, var(--ha-card-backdrop-filter, none)); -webkit-backdrop-filter: var(--pane-backdrop, var(--ha-card-backdrop-filter, none));
-    border: var(--ha-card-border-width, 1px) solid var(--pane-border, var(--ha-card-border-color, color-mix(in srgb, ${INK} 10%, transparent)));
-    box-shadow: var(--ha-card-box-shadow, none); border-radius: var(--pane-radius, var(--ha-card-border-radius, 16px)); }
 `;
 
 class LiquidGlassTileCardV2 extends HTMLElement {
@@ -233,7 +235,6 @@ class LiquidGlassTileCardV2 extends HTMLElement {
     this._cardEl.classList.toggle('frameless', config.frame === false);
     this._cardEl.classList.toggle('calm', !this._glowOn());
     this._cardEl.classList.toggle('stat-lg', config.stat_size === 'large');
-    this._cardEl.classList.toggle('stat-theme', config.stat_surface === 'theme');
     // look: solid is opt-in (config `look`, else the theme's --lg-look);
     // anything else keeps the glass look untouched.
     this._cardEl.classList.toggle('solid', this._isSolid());
@@ -1130,11 +1131,11 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const nameEl = rowEl.querySelector('.name');
       const subEl = rowEl.querySelector('.sub');
       const iconEl = rowEl.querySelector('ha-icon');
-      if (nameEl) nameEl.textContent = name;
+      if (nameEl) setText(nameEl, name);
       // Exception: a solid bar tile shows the dragged value ("64 %") in
       // its sub line while its own drag is running.
-      if (subEl && !(dragging && solid && type === 'bar')) subEl.textContent = sub;
-      if (iconEl) iconEl.setAttribute('icon', icon);
+      if (subEl && !(dragging && solid && type === 'bar')) setText(subEl, sub);
+      if (iconEl && iconEl.getAttribute('icon') !== icon) iconEl.setAttribute('icon', icon);
 
       if (type === 'toggle') {
         const on = active;
@@ -1151,7 +1152,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         const raw = row.value != null ? this._resolveTemplate(row.value, row.entity) : stateObj?.state;
         const num = typeof raw === 'number' ? raw : parseFloat(raw);
         const valEl = rowEl.querySelector('.stat-value');
-        if (valEl) valEl.textContent = raw == null || raw === 'unavailable' || raw === 'unknown' ? '–' : String(raw);
+        if (valEl) setText(valEl, raw == null || raw === 'unavailable' || raw === 'unknown' ? '–' : String(raw));
         rowEl.style.setProperty('--c', color);
         rowEl.classList.toggle('zero', !Number.isFinite(num) || num <= 0);
         const lineEl = rowEl.querySelector('.stat-line');
