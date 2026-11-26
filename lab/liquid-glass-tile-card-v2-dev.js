@@ -994,6 +994,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   }
 
   _paintRing(ringEl, pct, color, active) {
+    // Same reason as setText(): skip the style writes when nothing changed.
+    const key = `${pct}|${color}|${active}|${this._glowOn()}`;
+    if (ringEl._lgPainted === key) return;
+    ringEl._lgPainted = key;
     const deg = pct * 360;
     ringEl.style.background = `conic-gradient(${color} 0deg, ${color} ${deg}deg, transparent ${deg}deg)`;
     if (active !== undefined) ringEl.style.boxShadow = this._ringHaloShadow(active, color, pct);
