@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.13.1';
+const CARD_VERSION = '2.13.2';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -40,6 +40,15 @@ function hsToRgbCss([h, s]) {
 // Neutral surfaces are mixed with the theme's own text color instead of a
 // hardcoded white, so they stay visible on both dark AND light HA themes
 // (a flat rgba(255,255,255,x) all but disappears on a light background).
+// Writes text only when it changed. `textContent = x` always swaps the
+// text node, even for the same string, and every swap makes the browser
+// lay the card out again. _patchRows() runs on every hass tick (several
+// times a second), which made scrolling stutter in pop-ups on iOS.
+function setText(el, value) {
+  const v = value == null ? '' : String(value);
+  if (el.textContent !== v) el.textContent = v;
+}
+
 const INK = 'var(--primary-text-color, #fff)';
 
 const STYLE = `
@@ -985,6 +994,10 @@ class LiquidGlassTileCardV2 extends HTMLElement {
   }
 
   _paintRing(ringEl, pct, color, active) {
+    // Same reason as setText(): skip the style writes when nothing changed.
+    const key = `${pct}|${color}|${active}|${this._glowOn()}`;
+    if (ringEl._lgPainted === key) return;
+    ringEl._lgPainted = key;
     const deg = pct * 360;
     ringEl.style.background = `conic-gradient(${color} 0deg, ${color} ${deg}deg, transparent ${deg}deg)`;
     if (active !== undefined) ringEl.style.boxShadow = this._ringHaloShadow(active, color, pct);
@@ -1122,11 +1135,11 @@ class LiquidGlassTileCardV2 extends HTMLElement {
       const nameEl = rowEl.querySelector('.name');
       const subEl = rowEl.querySelector('.sub');
       const iconEl = rowEl.querySelector('ha-icon');
-      if (nameEl) nameEl.textContent = name;
+      if (nameEl) setText(nameEl, name);
       // Exception: a solid bar tile shows the dragged value ("64 %") in
       // its sub line while its own drag is running.
-      if (subEl && !(dragging && solid && type === 'bar')) subEl.textContent = sub;
-      if (iconEl) iconEl.setAttribute('icon', icon);
+      if (subEl && !(dragging && solid && type === 'bar')) setText(subEl, sub);
+      if (iconEl && iconEl.getAttribute('icon') !== icon) iconEl.setAttribute('icon', icon);
 
       if (type === 'toggle') {
         const on = active;
@@ -1143,7 +1156,7 @@ class LiquidGlassTileCardV2 extends HTMLElement {
         const raw = row.value != null ? this._resolveTemplate(row.value, row.entity) : stateObj?.state;
         const num = typeof raw === 'number' ? raw : parseFloat(raw);
         const valEl = rowEl.querySelector('.stat-value');
-        if (valEl) valEl.textContent = raw == null || raw === 'unavailable' || raw === 'unknown' ? '–' : String(raw);
+        if (valEl) setText(valEl, raw == null || raw === 'unavailable' || raw === 'unknown' ? '–' : String(raw));
         rowEl.style.setProperty('--c', color);
         rowEl.classList.toggle('zero', !Number.isFinite(num) || num <= 0);
         const lineEl = rowEl.querySelector('.stat-line');

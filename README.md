@@ -197,6 +197,9 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 
 ## Changelog
 
+### 2.13.2
+- Smoother scrolling in pop-ups: rows only rewrite their name, state text, value and icon when these actually change. Before, every state update in Home Assistant (several per second) replaced the text of every row, which made the browser lay the card out again and could make scrolling stutter and jump, mostly on iOS.
+
 ### 2.13.1
 - Stat tiles read the Pane family variable `--pane-backdrop` (e.g. `blur(18px)`), so a frosted theme blurs what is behind them like the other cards. Without it nothing changes.
 
