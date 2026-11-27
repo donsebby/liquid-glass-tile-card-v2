@@ -184,7 +184,9 @@ const STYLE = `
   .card.solid .pill .icon-box, .card.solid .bar-tile .icon-box { width:36px; height:36px; border-radius:50%; border:none;
     background: color-mix(in srgb, ${INK} 10%, transparent); color: var(--secondary-text-color, rgba(255,255,255,0.6));
     box-shadow:none; filter:none; z-index:1; transition: background .2s ease, color .2s ease; }
-  .card.solid .pill .icon-box.active, .card.solid .bar-tile .icon-box.active { background: var(--c); color:#16181d; box-shadow:none; filter:none; }
+  /* the round icon lights up with the level, like a lamp: dim at 10 %, full at 100 % */
+  .card.solid .pill .icon-box.active, .card.solid .bar-tile .icon-box.active { color:#16181d; box-shadow:none; filter:none;
+    background: color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 65%), color-mix(in srgb, ${INK} 14%, transparent)); }
   .card.solid .pill .icon-box ha-icon, .card.solid .bar-tile .icon-box ha-icon { --mdc-icon-size: 20px; }
   .card.solid .bar-tile .text { position:relative; z-index:1; }
   .card.solid .pill .name, .card.solid .bar-tile .name { font-size:15px; font-weight:600; color: var(--primary-text-color, rgba(255,255,255,0.95)); }
