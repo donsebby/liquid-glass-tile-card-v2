@@ -197,6 +197,9 @@ Without them nothing changes. Options set on the card itself (e.g. `blur`) still
 
 ## Changelog
 
+### Unreleased
+- Solid look: tiles take their edge, shadow and backdrop from the theme (`--lg-tile-edge`, `--lg-tile-shadow`, `--lg-tile-backdrop`), so solid tiles can also be made of glass.
+
 ### 2.13.2
 - Smoother scrolling in pop-ups: rows only rewrite their name, state text, value and icon when these actually change. Before, every state update in Home Assistant (several per second) replaced the text of every row, which made the browser lay the card out again and could make scrolling stutter and jump, mostly on iOS.
 

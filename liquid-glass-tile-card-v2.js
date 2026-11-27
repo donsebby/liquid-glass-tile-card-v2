@@ -174,9 +174,10 @@ const STYLE = `
   .card.solid .pill, .card.solid .bar-tile { position:relative; overflow:hidden; isolation:isolate;
     flex-direction:row; align-items:center; justify-content:flex-start; gap:12px;
     background: var(--lg-tile-bg, color-mix(in srgb, ${INK} 8%, transparent));
-    border:1px solid rgba(255,255,255,0.04); border-radius: calc(var(--lg-radius, 20px) - 4px);
-    padding:12px 14px; min-height:64px; box-shadow:none; transition: background .2s ease; }
-  .card.solid .pill.active, .card.solid .bar-tile.active { box-shadow:none;
+    border: var(--lg-tile-edge, 1px solid rgba(255,255,255,0.04)); border-radius: calc(var(--lg-radius, 20px) - 4px);
+    padding:12px 14px; min-height:64px; box-shadow: var(--lg-tile-shadow, none); transition: background .2s ease;
+    -webkit-backdrop-filter: var(--lg-tile-backdrop, none); backdrop-filter: var(--lg-tile-backdrop, none); }
+  .card.solid .pill.active, .card.solid .bar-tile.active { box-shadow: var(--lg-tile-shadow, none);
     background: color-mix(in srgb, var(--c) 20%, var(--lg-tile-bg, color-mix(in srgb, ${INK} 8%, transparent))); }
   .card.solid .bar-tile { touch-action: pan-y; }
   .card.solid .left { gap:12px; flex:1 1 auto; }
