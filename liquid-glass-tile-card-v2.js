@@ -1,4 +1,4 @@
-const CARD_VERSION = '2.13.2';
+const CARD_VERSION = '2.14.0';
 
 // eslint-disable-next-line no-console
 console.info(
@@ -187,6 +187,9 @@ const STYLE = `
   /* the round icon lights up with the level, like a lamp: dim at 10 %, full at 100 % */
   .card.solid .pill .icon-box.active, .card.solid .bar-tile .icon-box.active { color:#16181d; box-shadow:none; filter:none;
     background: color-mix(in srgb, var(--c) calc(35% + var(--glow, 1) * 65%), color-mix(in srgb, ${INK} 14%, transparent)); }
+  /* optional halo around the lit icon, switched on by the theme (--lg-icon-halo: 1) */
+  .card.solid .pill .icon-box.active, .card.solid .bar-tile .icon-box.active {
+    box-shadow: 0 0 calc(var(--glow, 1) * 16px * var(--lg-icon-halo, 0)) calc(-2px * var(--lg-icon-halo, 0)) color-mix(in srgb, var(--c) calc(var(--glow, 1) * 80%), transparent); }
   .card.solid .pill .icon-box ha-icon, .card.solid .bar-tile .icon-box ha-icon { --mdc-icon-size: 20px; }
   .card.solid .bar-tile .text { position:relative; z-index:1; }
   .card.solid .pill .name, .card.solid .bar-tile .name { font-size:15px; font-weight:600; color: var(--primary-text-color, rgba(255,255,255,0.95)); }
